@@ -1,6 +1,9 @@
 const { ethers } = require('ethers');
 const fs = require('fs').promises;
 const path = require('path');
+const etherscan = require('./etherscan');
+const config = require('../config');
+const logger = require('./logger');
 
 /**
  * Address type checker utility with file-based storage
@@ -181,6 +184,40 @@ async function checkAddressType(provider, address) {
     // If it's a contract, add to contract addresses file
     if (isContract) {
       await addContractAddress(normalizedAddress);
+      
+      // Fetch source code from Etherscan if enabled (checks if already fetched)
+      let sourceCodeFetched = false;
+      if (config.etherscan.fetchSourceCode && config.etherscan.fetchOnContractDetected) {
+        try {
+          // Wait for source code to be fetched before auditing
+          const sourceResult = await fetchContractSourceCode(normalizedAddress);
+          sourceCodeFetched = sourceResult !== null;
+          if (sourceCodeFetched) {
+            logger.debug(`Source code fetched successfully for ${normalizedAddress}`);
+          }
+        } catch (err) {
+          logger.debug(`Source code fetch failed for ${normalizedAddress}: ${err.message}`);
+          sourceCodeFetched = false;
+        }
+      } else {
+        // If source fetching is disabled, check if source already exists
+        const existingSource = await etherscan.getContractSourceCodeFilePath(normalizedAddress);
+        sourceCodeFetched = existingSource !== null;
+      }
+
+      // Trigger audit only if source code is available
+      if (config.audit && config.audit.enabled && config.audit.auditOnDetection) {
+        if (sourceCodeFetched) {
+          // Import audit integration (lazy load to avoid circular deps)
+          const auditIntegration = require('./auditIntegration');
+          // Audit asynchronously (don't block address checking)
+          auditIntegration.auditOnDetection(normalizedAddress).catch(err => {
+            logger.warn(`Audit failed for ${normalizedAddress}: ${err.message}`);
+          });
+        } else {
+          logger.debug(`Skipping audit for ${normalizedAddress}: source code not available`);
+        }
+      }
     }
     
     return result;
@@ -283,6 +320,27 @@ async function getContractAddresses() {
 }
 
 /**
+ * Fetch contract source code from Etherscan (async, non-blocking)
+ * Checks if already fetched (file exists) before fetching
+ * @param {string} contractAddress - Contract address
+ * @returns {Promise<string|null>} Source code content or null
+ */
+async function fetchContractSourceCode(contractAddress) {
+  try {
+    if (!config.etherscan.apiKey) {
+      // No API key, skip
+      return null;
+    }
+    
+    // Use simplified fetch function that checks file existence
+    return await etherscan.fetchAndSaveContractSourceCode(contractAddress);
+  } catch (error) {
+    // Silently fail - this is optional functionality
+    return null;
+  }
+}
+
+/**
  * Initialize the address types system (load from file)
  */
 async function initializeCache() {
@@ -302,5 +360,6 @@ module.exports = {
   getContractAddresses,
   initializeCache,
   loadAddressTypes,
-  saveAddressTypes
+  saveAddressTypes,
+  fetchContractSourceCode
 };

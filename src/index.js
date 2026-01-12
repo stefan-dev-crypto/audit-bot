@@ -3,6 +3,9 @@
 const ERC20ApprovalMonitor = require('./monitors/erc20ApprovalMonitor');
 const logger = require('./utils/logger');
 const config = require('./config');
+const addressChecker = require('./utils/addressChecker');
+const etherscan = require('./utils/etherscan');
+const auditIntegration = require('./utils/auditIntegration');
 
 /**
  * Main entry point for audit-bot
@@ -11,6 +14,26 @@ const config = require('./config');
 async function main() {
   try {
     logger.info('Starting audit-bot - ERC20 Approval Event Monitor...');
+    
+    // Initialize address checker and Etherscan
+    await addressChecker.initializeCache();
+    await etherscan.initialize();
+    
+    // Log Etherscan configuration
+    if (config.etherscan.apiKey) {
+      logger.info(`Etherscan API configured for ${config.etherscan.network}`);
+      if (config.etherscan.fetchSourceCode) {
+        logger.info('Auto-fetching contract source codes enabled');
+      }
+    } else {
+      logger.info('Etherscan API key not configured (source code fetching disabled)');
+    }
+
+    // Initialize audit system if enabled
+    if (config.audit.enabled) {
+      await auditIntegration.initializeAuditManager();
+      logger.info('Audit system initialized');
+    }
     
     // Create monitor instance
     const monitor = new ERC20ApprovalMonitor({
@@ -34,7 +57,7 @@ async function main() {
         addressToSymbol[tokens[symbol].toLowerCase()] = symbol;
       });
       
-      monitor.monitorTokens(tokenAddresses, (eventData) => {
+      monitor.monitorTokens(tokenAddresses, async (eventData) => {
         const symbol = addressToSymbol[eventData.tokenAddress.toLowerCase()] || 'UNKNOWN';
         
         // Get address type labels
@@ -52,6 +75,27 @@ async function main() {
         console.log(`  Amount: ${eventData.amount}`);
         console.log(`  Block: ${eventData.blockNumber}`);
         console.log(`  Tx Hash: ${eventData.transactionHash}`);
+        
+        // Optionally fetch and display source code info for contract addresses
+        if (config.etherscan.fetchSourceCode && config.etherscan.apiKey) {
+          // Fetch source code for contract addresses (non-blocking, checks if already fetched)
+          const contractAddresses = [];
+          if (eventData.ownerIsContract) contractAddresses.push(eventData.owner);
+          if (eventData.spenderIsContract) contractAddresses.push(eventData.spender);
+          
+          for (const contractAddr of contractAddresses) {
+            try {
+              const sourceCode = await addressChecker.fetchContractSourceCode(contractAddr);
+              if (sourceCode) {
+                const label = contractAddr === eventData.owner ? 'Owner' : 'Spender';
+                console.log(`  ${label} Contract: Source code ${sourceCode.length > 0 ? 'fetched' : 'not available'}`);
+              }
+            } catch (err) {
+              // Silently ignore - optional feature
+            }
+          }
+        }
+        
         console.log('---\n');
       });
     }

@@ -18,6 +18,14 @@ yarn-error.log*
 cache/
 *.cache
 
+# Contract source codes (human-readable format only)
+sources/
+
+# Audit results (keep AUDIT_SUMMARY.md for overview)
+audit-results/*.json
+audit-results/*_latest.md
+!audit-results/AUDIT_SUMMARY.md
+
 # OS files
 .DS_Store
 Thumbs.db

@@ -56,19 +56,55 @@ const config = {
     rpcUrlTestnet: process.env.ETHEREUM_RPC_URL_TESTNET || 'https://eth-sepolia.g.alchemy.com/v2/demo',
   },
 
+  // Etherscan API Configuration
+  etherscan: {
+    apiKey: process.env.ETHERSCAN_API_KEY || null,
+    network: process.env.ETHERSCAN_NETWORK || 'ethereum', // ethereum chain
+    fetchSourceCode: process.env.ETHERSCAN_FETCH_SOURCE_CODE === 'true' || true, // Auto-fetch source code for new contracts
+    fetchOnContractDetected: process.env.ETHERSCAN_FETCH_ON_DETECT === 'true' || true, // Fetch immediately when contract detected
+  },
+
   // ERC20 Monitoring Configuration
   erc20Monitoring: {
-    enabled: process.env.ERC20_MONITORING_ENABLED === 'true' || false,
-    monitorAll: process.env.ERC20_MONITOR_ALL === 'true' || false,
-    // Tokens object: { symbol: address }
     tokens: parseTokens(),
-    historicalLookback: parseInt(process.env.ERC20_HISTORICAL_LOOKBACK) || 1000, // blocks
   },
 
   // Logging Configuration
   logging: {
     level: process.env.LOG_LEVEL || 'info',
     file: process.env.LOG_FILE || 'logs/audit_bot.log',
+  },
+
+  // Audit Configuration
+  audit: {
+    // Enable automatic auditing
+    enabled: process.env.AUDIT_ENABLED === 'true' || true,
+    
+    // Audit on contract detection
+    auditOnDetection: process.env.AUDIT_ON_DETECTION === 'true' || true,
+    
+    // Results directory
+    resultsDir: process.env.AUDIT_RESULTS_DIR || './audit-results',
+    
+    // Auto-save results
+    autoSave: process.env.AUDIT_AUTO_SAVE === 'true' || true,
+    
+    // Slither Configuration
+    slither: {
+      enabled: process.env.SLITHER_ENABLED === 'true' || true,
+      path: process.env.SLITHER_PATH || 'slither',
+      timeout: parseInt(process.env.SLITHER_TIMEOUT) || 120000, // 2 minutes
+      additionalArgs: process.env.SLITHER_ARGS ? process.env.SLITHER_ARGS.split(',') : [],
+      // Solidity version selection
+      solcSelectPath: process.env.SOLC_SELECT_PATH || 'solc-select',
+      autoSelectVersion: process.env.SLITHER_AUTO_SELECT_VERSION !== 'false', // Default: true
+      restoreVersion: process.env.SLITHER_RESTORE_VERSION !== 'false', // Default: true
+    },
+    
+    // Add other auditor configs here in the future
+    // mythril: { ... },
+    // manticore: { ... },
+    // etc.
   },
 };
 

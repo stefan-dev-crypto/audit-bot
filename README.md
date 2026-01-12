@@ -6,11 +6,23 @@ A Node.js application for monitoring and tracking ERC20 token Approval events on
 
 ## Features
 
+### Monitoring
 - ✅ **Monitor Single Token**: Track Approval events for a specific ERC20 token
 - ✅ **Monitor Multiple Tokens**: Track Approval events for multiple tokens simultaneously
 - ✅ **Monitor All ERC20 Tokens**: Monitor all ERC20 Approval events on the network
 - ✅ **Historical Queries**: Query past Approval events from the blockchain
 - ✅ **Real-time Monitoring**: Listen to live Approval events as they occur
+- ✅ **Address Type Detection**: Distinguish between contract and wallet addresses
+
+### Contract Analysis
+- ✅ **Source Code Fetching**: Automatically fetch contract source code from Etherscan
+- ✅ **Dual Format Storage**: Save as JSON (for tools) and readable files (for humans)
+- ✅ **Smart Contract Auditing**: Integrated audit framework with Slither
+- ✅ **Extensible Auditors**: Easy to add new audit tools (Mythril, Manticore, etc.)
+- ✅ **Automatic Auditing**: Auto-audit contracts when detected
+- ✅ **Results Storage**: Persistent storage of audit results
+
+### General
 - ✅ **Event Listeners**: Support for event-based architecture
 - ✅ **Configurable**: Easy configuration via environment variables
 - ✅ **Extensible**: Designed for easy extension and customization
@@ -21,6 +33,8 @@ A Node.js application for monitoring and tracking ERC20 token Approval events on
 
 - Node.js 16.0.0 or higher
 - npm or yarn
+- Python 3.8+ (for Slither auditor, optional)
+- Solidity compiler (solc, optional for auditing)
 
 ### Setup
 
@@ -38,6 +52,14 @@ A Node.js application for monitoring and tracking ERC20 token Approval events on
    ```bash
    cp .env.example .env
    # Edit .env with your configuration
+   ```
+
+4. **Install Slither** (optional, for contract auditing):
+   ```bash
+   pip3 install slither-analyzer
+   pip3 install solc-select
+   solc-select install 0.8.0
+   solc-select use 0.8.0
    ```
 
 ## Quick Start
@@ -82,12 +104,29 @@ npm run example
 
 | Variable | Description | Default |
 |----------|-------------|---------|
+| **Ethereum Configuration** |
 | `ETHEREUM_RPC_URL` | Ethereum RPC endpoint URL | `https://ethereum-rpc.publicnode.com` |
+| **ERC20 Monitoring** |
 | `ERC20_MONITORING_ENABLED` | Enable/disable ERC20 monitoring | `false` |
 | `ERC20_MONITOR_ALL` | Monitor all ERC20 tokens | `false` |
-| `ERC20_MONITOR_TOKENS` | Comma-separated list of token addresses | - |
-| `ERC20_HISTORICAL_LOOKBACK` | Number of blocks to look back for historical queries | `1000` |
+| `ERC20_MONITOR_TOKENS` | JSON object of tokens: `{"USDC":"0x...","USDT":"0x..."}` | - |
+| `ERC20_HISTORICAL_LOOKBACK` | Number of blocks to look back | `1000` |
+| **Etherscan API** |
+| `ETHERSCAN_API_KEY` | Your Etherscan API key | - |
+| `ETHERSCAN_NETWORK` | Network name | `ethereum` |
+| `ETHERSCAN_FETCH_SOURCE_CODE` | Auto-fetch contract source code | `false` |
+| `ETHERSCAN_FETCH_ON_DETECT` | Fetch when contract detected | `false` |
+| **Audit System** |
+| `AUDIT_ENABLED` | Enable audit system | `false` |
+| `AUDIT_ON_DETECTION` | Auto-audit on detection | `false` |
+| `AUDIT_RESULTS_DIR` | Results directory | `./audit-results` |
+| `SLITHER_ENABLED` | Enable Slither auditor | `true` |
+| `SLITHER_PATH` | Path to slither executable | `slither` |
+| `SLITHER_TIMEOUT` | Timeout in milliseconds | `120000` |
+| **Logging** |
 | `LOG_LEVEL` | Logging level (error, warn, info, debug) | `info` |
+
+See `.env.example` for complete configuration.
 
 ## Usage Examples
 
@@ -215,32 +254,91 @@ You can use any Ethereum RPC endpoint:
 
 - **Performance**: Monitoring all ERC20 events can be resource-intensive. Consider using specific token monitoring when possible.
 
-## Extending the Monitor
+## Advanced Features
 
-The monitor is designed to be extensible. You can:
+### Contract Source Code Fetching
 
-1. **Add custom filters** in callback functions
-2. **Integrate with databases** to store events
-3. **Add notification systems** (Telegram, Discord, etc.)
-4. **Create analysis pipelines** for detected approvals
-5. **Extend the class** to add custom functionality
+Automatically fetch and store contract source codes:
 
-Example extension:
+```bash
+# Enable in .env
+ETHERSCAN_API_KEY=your_api_key_here
+ETHERSCAN_FETCH_SOURCE_CODE=true
+ETHERSCAN_FETCH_ON_DETECT=true
+```
+
+Source codes are saved in two formats:
+- **JSON** (`contracts/`): Complete Standard JSON Input for re-compilation
+- **Readable** (`sources/`): Organized `.sol` files for analysis
+
+See [CONTRACT_FETCHING.md](CONTRACT_FETCHING.md) for details.
+
+### Contract Auditing
+
+Integrated smart contract security analysis:
+
+```bash
+# Enable in .env
+AUDIT_ENABLED=true
+AUDIT_ON_DETECTION=true
+SLITHER_ENABLED=true
+```
+
+Features:
+- **Automatic auditing** when contracts are detected
+- **Multiple auditors** (currently Slither, easy to add more)
+- **Standardized results** in JSON format
+- **Persistent storage** of audit findings
+
+See [AUDIT_SYSTEM.md](AUDIT_SYSTEM.md) for complete documentation.
+
+### Adding Custom Auditors
+
+The audit framework is extensible. Example:
 
 ```javascript
-class CustomMonitor extends ERC20ApprovalMonitor {
-  constructor(options) {
-    super(options);
-    this.eventStore = [];
+const { BaseAuditor } = require('./src/auditors');
+
+class MyCustomAuditor extends BaseAuditor {
+  constructor(config) {
+    super('MyAuditor', config);
   }
-  
-  async monitorTokenWithStorage(tokenAddress) {
-    this.monitorToken(tokenAddress, (eventData) => {
-      this.eventStore.push(eventData);
-      // Add custom logic here
+
+  async audit({ contractAddress, sourceDir, mainFile }) {
+    // Your audit logic here
+    const findings = await this.runMyTool(sourceDir);
+    
+    return this.createResult({
+      success: true,
+      findings: findings.map(f => ({
+        id: f.id,
+        title: f.title,
+        severity: f.severity,
+        description: f.description
+      }))
     });
   }
 }
+```
+
+See [AUDIT_SYSTEM.md](AUDIT_SYSTEM.md#adding-new-auditors) for step-by-step guide.
+
+## Documentation
+
+- **[AUDIT_SYSTEM.md](AUDIT_SYSTEM.md)** - Complete audit system documentation
+- **[CONTRACT_FETCHING.md](CONTRACT_FETCHING.md)** - Contract source code fetching guide
+- **[ERC20_APPROVAL_MONITOR.md](ERC20_APPROVAL_MONITOR.md)** - Detailed monitor documentation
+
+## Examples
+
+Run example scripts:
+
+```bash
+# ERC20 monitoring examples
+npm run example
+
+# Audit system example
+node src/examples/auditExample.js
 ```
 
 ## License
