@@ -1,0 +1,33 @@
+{
+  "name": "audit-bot",
+  "version": "1.0.0",
+  "description": "Ethereum ERC20 Approval Event Monitor - Monitor and track ERC20 token approval events on Ethereum blockchain",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "example": "node src/examples/erc20ApprovalMonitorExample.js",
+    "test": "node src/test.js"
+  },
+  "keywords": [
+    "ethereum",
+    "erc20",
+    "blockchain",
+    "monitoring",
+    "approval",
+    "ethers.js",
+    "web3"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "ethers": "^6.8.1",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}
