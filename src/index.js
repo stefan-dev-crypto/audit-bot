@@ -2,6 +2,7 @@
 
 const ERC20ApprovalMonitor = require('./monitors/erc20ApprovalMonitor');
 const logger = require('./utils/logger');
+const consoleOutput = require('./utils/consoleOutput');
 const config = require('./config');
 const addressChecker = require('./utils/addressChecker');
 const etherscan = require('./utils/etherscan');
@@ -13,27 +14,43 @@ const auditIntegration = require('./utils/auditIntegration');
  */
 async function main() {
   try {
-    logger.info('Starting audit-bot - ERC20 Approval Event Monitor...');
+    // Initialize components
+    const components = [];
     
-    // Initialize address checker and Etherscan
+    // Address checker
     await addressChecker.initializeCache();
-    await etherscan.initialize();
+    components.push({ name: 'Address Checker', enabled: true });
     
-    // Log Etherscan configuration
+    // Etherscan
+    await etherscan.initialize();
     if (config.etherscan.apiKey) {
-      logger.info(`Etherscan API configured for ${config.etherscan.network}`);
-      if (config.etherscan.fetchSourceCode) {
-        logger.info('Auto-fetching contract source codes enabled');
-      }
+      components.push({
+        name: 'Etherscan API',
+        enabled: true,
+        details: [`Network: ${config.etherscan.network}`, config.etherscan.fetchSourceCode ? 'Source code fetching: enabled' : 'Source code fetching: disabled']
+      });
     } else {
-      logger.info('Etherscan API key not configured (source code fetching disabled)');
+      components.push({ name: 'Etherscan API', enabled: false });
     }
-
-    // Initialize audit system if enabled
+    
+    // Audit system
     if (config.audit.enabled) {
       await auditIntegration.initializeAuditManager();
-      logger.info('Audit system initialized');
+      const auditStatus = await auditIntegration.getAuditorsStatus();
+      const enabledAuditors = Object.entries(auditStatus)
+        .filter(([_, status]) => status.available)
+        .map(([name]) => name);
+      
+      components.push({
+        name: 'Audit System',
+        enabled: true,
+        details: [`Auditors: ${enabledAuditors.join(', ') || 'none'}`]
+      });
+    } else {
+      components.push({ name: 'Audit System', enabled: false });
     }
+    
+    consoleOutput.systemInit(components);
     
     // Create monitor instance
     const monitor = new ERC20ApprovalMonitor({
@@ -49,7 +66,7 @@ async function main() {
     const tokenSymbols = Object.keys(tokens);
     
     if (tokenAddresses.length > 0) {
-      logger.info(`Monitoring ${tokenAddresses.length} configured tokens: ${tokenSymbols.join(', ')}`);
+      consoleOutput.info(`Monitoring ${tokenAddresses.length} token(s): ${tokenSymbols.join(', ')}`);
       
       // Create a map for quick symbol lookup
       const addressToSymbol = {};
@@ -59,61 +76,26 @@ async function main() {
       
       monitor.monitorTokens(tokenAddresses, async (eventData) => {
         const symbol = addressToSymbol[eventData.tokenAddress.toLowerCase()] || 'UNKNOWN';
-        
-        // Get address type labels
-        const ownerLabel = eventData.ownerIsContract !== null 
-          ? (eventData.ownerIsContract ? 'Contract' : 'Wallet')
-          : 'Unknown';
-        const spenderLabel = eventData.spenderIsContract !== null
-          ? (eventData.spenderIsContract ? 'Contract' : 'Wallet')
-          : 'Unknown';
-        
-        console.log('\n📝 Approval Event Detected:');
-        console.log(`  Token: ${symbol} (${eventData.tokenAddress})`);
-        console.log(`  Owner (Sender): ${eventData.owner} [${ownerLabel}]`);
-        console.log(`  Spender (Recipient): ${eventData.spender} [${spenderLabel}]`);
-        console.log(`  Amount: ${eventData.amount}`);
-        console.log(`  Block: ${eventData.blockNumber}`);
-        console.log(`  Tx Hash: ${eventData.transactionHash}`);
-        
-        // Optionally fetch and display source code info for contract addresses
-        if (config.etherscan.fetchSourceCode && config.etherscan.apiKey) {
-          // Fetch source code for contract addresses (non-blocking, checks if already fetched)
-          const contractAddresses = [];
-          if (eventData.ownerIsContract) contractAddresses.push(eventData.owner);
-          if (eventData.spenderIsContract) contractAddresses.push(eventData.spender);
-          
-          for (const contractAddr of contractAddresses) {
-            try {
-              const sourceCode = await addressChecker.fetchContractSourceCode(contractAddr);
-              if (sourceCode) {
-                const label = contractAddr === eventData.owner ? 'Owner' : 'Spender';
-                console.log(`  ${label} Contract: Source code ${sourceCode.length > 0 ? 'fetched' : 'not available'}`);
-              }
-            } catch (err) {
-              // Silently ignore - optional feature
-            }
-          }
-        }
-        
-        console.log('---\n');
+        consoleOutput.approvalEvent(eventData, symbol);
       });
     }
     
     // Handle graceful shutdown
     process.on('SIGINT', () => {
-      logger.info('\nReceived SIGINT, shutting down gracefully...');
+      consoleOutput.blank();
+      consoleOutput.warn('Shutting down gracefully...');
       monitor.stopAll();
       process.exit(0);
     });
     
     process.on('SIGTERM', () => {
-      logger.info('\nReceived SIGTERM, shutting down gracefully...');
+      consoleOutput.blank();
+      consoleOutput.warn('Shutting down gracefully...');
       monitor.stopAll();
       process.exit(0);
     });
     
-    logger.info('Monitor is running. Press Ctrl+C to stop.');
+    consoleOutput.monitoringStatus(tokenAddresses.length);
     
   } catch (error) {
     logger.error('Failed to start monitor:', error);
