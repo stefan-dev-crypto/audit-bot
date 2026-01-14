@@ -341,6 +341,11 @@ ${JSON.stringify(auditResult, null, 2)}
       // Record audit result with vulnerability details
       this.recordAuditResult(contractAddress, hasVulnerabilities, vulnerabilityNames);
       
+      // Update statistics (if statistics tracker is available)
+      if (this.statistics) {
+        this.statistics.recordAudit(hasVulnerabilities);
+      }
+      
       // No cleanup needed (file content sent directly in message)
       
       return {

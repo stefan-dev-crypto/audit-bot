@@ -6,12 +6,14 @@
 import fs from 'fs';
 import path from 'path';
 import { OpenAIAuditor } from './openaiAuditor.js';
+import { AuditStatistics } from '../storage/auditStatistics.js';
 
 export class BackgroundAuditor {
-  constructor(dataDir = './data') {
+  constructor(dataDir = './data', statistics = null) {
     this.dataDir = dataDir;
     this.sourcesDir = path.join(dataDir, 'sources');
-    this.auditor = new OpenAIAuditor(process.env.OPENAI_API_KEY);
+    this.statistics = statistics || new AuditStatistics(dataDir);
+    this.auditor = new OpenAIAuditor(process.env.OPENAI_API_KEY, this.statistics);
     this.isRunning = false;
     this.checkInterval = 10000; // Check every 10 seconds
     this.auditDelay = 2000; // Delay between audits (rate limiting)

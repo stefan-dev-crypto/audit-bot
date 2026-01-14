@@ -9,10 +9,11 @@ import { isContract, fetchContractSource } from '../api/etherscan.js';
 import { ContractTracker } from '../storage/contractTracker.js';
 
 export class ApprovalListener {
-  constructor(chainConfig) {
+  constructor(chainConfig, statistics = null) {
     this.chainConfig = chainConfig;
     this.provider = new ethers.JsonRpcProvider(chainConfig.rpcUrl);
-    this.tracker = new ContractTracker();
+    this.statistics = statistics;
+    this.tracker = new ContractTracker('./data', statistics);
     this.isRunning = false;
     this.lastProcessedBlock = 0;
   }

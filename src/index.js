@@ -7,6 +7,7 @@ import 'dotenv/config';
 import { getChainConfig, getAvailableChains } from './config/chains.js';
 import { ApprovalListener } from './events/approvalListener.js';
 import { BackgroundAuditor } from './audit/backgroundAuditor.js';
+import { AuditStatistics } from './storage/auditStatistics.js';
 
 async function main() {
   console.log('╔════════════════════════════════════════════════════════════════╗');
@@ -25,15 +26,18 @@ async function main() {
     console.log(`Chain ID: ${chainConfig.chainId}`);
     console.log(`Available chains: ${getAvailableChains().join(', ')}\n`);
     
+    // Initialize statistics tracker
+    const statistics = new AuditStatistics();
+    
     // Create and start the background auditor (runs in parallel)
-    const backgroundAuditor = new BackgroundAuditor();
+    const backgroundAuditor = new BackgroundAuditor('./data', statistics);
     backgroundAuditor.start();
     
     // Create and start the approval listener
-    const listener = new ApprovalListener(chainConfig);
+    const listener = new ApprovalListener(chainConfig, statistics);
     
-    // Display stats periodically
-    const statsInterval = setInterval(() => {
+    // Display audit queue stats periodically
+    const queueStatsInterval = setInterval(() => {
       const stats = backgroundAuditor.getStats();
       if (stats.unauditedCount > 0 || stats.currentlyAuditing) {
         const nextInfo = stats.nextToAudit ? ` | Next: ${stats.nextToAudit}` : '';
@@ -41,14 +45,22 @@ async function main() {
       }
     }, 60000); // Every 60 seconds
     
+    // Display audit statistics periodically
+    const statisticsInterval = setInterval(() => {
+      statistics.displayStats();
+    }, 300000); // Every 5 minutes
+    
     // Handle graceful shutdown
     process.on('SIGINT', () => {
-      clearInterval(statsInterval);
+      clearInterval(queueStatsInterval);
+      clearInterval(statisticsInterval);
       console.log('\n\n📊 Final Statistics:');
       const listenerStats = listener.getStats();
       const auditorStats = backgroundAuditor.getStats();
       console.log(`Total contracts processed: ${listenerStats.totalProcessed}`);
       console.log(`Unaudited contracts: ${auditorStats.unauditedCount}`);
+      console.log('');
+      statistics.displayStats();
       console.log('\n👋 Shutting down gracefully...');
       backgroundAuditor.stop();
       listener.stop();
@@ -56,7 +68,9 @@ async function main() {
     });
     
     process.on('SIGTERM', () => {
-      clearInterval(statsInterval);
+      clearInterval(queueStatsInterval);
+      clearInterval(statisticsInterval);
+      statistics.displayStats();
       backgroundAuditor.stop();
       listener.stop();
       process.exit(0);

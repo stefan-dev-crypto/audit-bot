@@ -6,17 +6,19 @@
 import fs from 'fs';
 import path from 'path';
 import { OpenAIAuditor } from '../audit/openaiAuditor.js';
+import { AuditStatistics } from './auditStatistics.js';
 
 export class ContractTracker {
-  constructor(dataDir = './data') {
+  constructor(dataDir = './data', statistics = null) {
     this.dataDir = dataDir;
     this.processedContracts = new Set();
     this.contractsFilePath = path.join(dataDir, 'processed-contracts.json');
     this.sourcesDir = path.join(dataDir, 'sources');
     this.contractIndex = 0;
+    this.statistics = statistics || new AuditStatistics(dataDir);
     
     // Initialize OpenAI auditor
-    this.auditor = new OpenAIAuditor(process.env.OPENAI_API_KEY);
+    this.auditor = new OpenAIAuditor(process.env.OPENAI_API_KEY, this.statistics);
     
     this.initialize();
   }
@@ -153,6 +155,12 @@ export class ContractTracker {
    */
   markAsProcessed(address) {
     const normalizedAddress = address.toLowerCase();
+    
+    // Only increment if it's a new contract
+    if (!this.processedContracts.has(normalizedAddress)) {
+      this.statistics.incrementFetched();
+    }
+    
     this.processedContracts.add(normalizedAddress);
     this.saveProcessedContracts();
   }
