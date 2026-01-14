@@ -3,3 +3,8 @@ node_modules/
 *.log
 data/
 .DS_Store
+
+# Environment variables
+.env
+.env.local
+.env.*.local
