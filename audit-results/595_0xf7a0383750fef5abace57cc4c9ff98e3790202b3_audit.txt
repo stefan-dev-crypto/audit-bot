@@ -1,0 +1,55 @@
+Contract Address: 0xf7a0383750fef5abace57cc4c9ff98e3790202b3
+Source File: 595_0xf7a0383750fef5abace57cc4c9ff98e3790202b3.sol
+Audit Date: 2026-01-14T19:42:15.391Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+A general external user can steal BONE tokens from the contract due to improper order of state mutation and transfer in the enter() function (re-entrancy enabled unlimited minting/exploit).
+
+Attack Surface: ERC20
+
+
+Critical Issues Found:
+
+1. Re-entrancy on enter() allows infinite minting and theft of BONE
+   Type: Re-entrancy with improper state update ordering
+   Function: enter(uint256 _amount)
+   
+   Attack Scenario:
+   1. Attacker creates a malicious contract which calls enter() and in its ERC20 callback (if BONE is a malicious token), recursively calls BuryBone.enter() again before the bone.transferFrom has completed or failed, since _mint happens before transferFrom.
+2. Because _mint is called before transferFrom, the attacker will receive new tBONE tokens _before_ sending in BONE, and the call can be nested indefinitely.
+3. The attacker can repeat this process to mint arbitrary amounts of tBONE without transferring in any BONE tokens, and later use leave() to withdraw all BONE held in the BuryBone contract.
+4. This results in total drain of all BONE held by the contract.
+   
+   Impact:
+   Complete theft of all BONE ERC20 tokens deposited in the contract, and unlimited mint of tBONE tokens.
+   
+   Recommended Fix:
+   Always ensure that external ERC20 transferFrom (bone.transferFrom) occurs before any state changes such as _mint(). Modify enter() so that bone.transferFrom is executed and completed before any tBONE tokens are minted to the user.
+
+
+
+==============================================================================
+
+Raw JSON:
+{
+  "critical_vulnerability_exists": true,
+  "summary": "A general external user can steal BONE tokens from the contract due to improper order of state mutation and transfer in the enter() function (re-entrancy enabled unlimited minting/exploit).",
+  "attack_surface": [
+    "ERC20"
+  ],
+  "critical_issues": [
+    {
+      "title": "Re-entrancy on enter() allows infinite minting and theft of BONE",
+      "vulnerability_type": "Re-entrancy with improper state update ordering",
+      "affected_function": "enter(uint256 _amount)",
+      "attack_scenario": "1. Attacker creates a malicious contract which calls enter() and in its ERC20 callback (if BONE is a malicious token), recursively calls BuryBone.enter() again before the bone.transferFrom has completed or failed, since _mint happens before transferFrom.\n2. Because _mint is called before transferFrom, the attacker will receive new tBONE tokens _before_ sending in BONE, and the call can be nested indefinitely.\n3. The attacker can repeat this process to mint arbitrary amounts of tBONE without transferring in any BONE tokens, and later use leave() to withdraw all BONE held in the BuryBone contract.\n4. This results in total drain of all BONE held by the contract.",
+      "impact": "Complete theft of all BONE ERC20 tokens deposited in the contract, and unlimited mint of tBONE tokens.",
+      "recommended_fix": "Always ensure that external ERC20 transferFrom (bone.transferFrom) occurs before any state changes such as _mint(). Modify enter() so that bone.transferFrom is executed and completed before any tBONE tokens are minted to the user."
+    }
+  ]
+}

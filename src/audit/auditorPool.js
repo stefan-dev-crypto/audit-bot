@@ -21,7 +21,7 @@ export class AuditorPool {
       totalAudits: 0,
     }));
 
-    this.minDelayBetweenAudits = 10000; // 10 seconds per auditor
+    this.minDelayBetweenAudits = 5000; // 5 seconds per auditor
     
     // Track contracts currently being audited to prevent duplicates
     this.auditingContracts = new Set();

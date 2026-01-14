@@ -38,8 +38,17 @@ export function detectContractLanguage(sourceCode) {
     return 'Empty';
   }
   
-  // Check for Vyper version marker
-  if (sourceCode.includes('# @version') || sourceCode.includes('#@version') || sourceCode.includes('@version')) {
+  // Check for Vyper version markers (multiple formats)
+  // Common Vyper patterns: # @version, #@version, # pragma version
+  if (sourceCode.includes('# @version') || 
+      sourceCode.includes('#@version') || 
+      sourceCode.includes('@version') ||
+      sourceCode.includes('# pragma version')) {
+    return 'Vyper';
+  }
+  
+  // Check for Vyper pragma optimize (Vyper-specific)
+  if (sourceCode.includes('# pragma optimize')) {
     return 'Vyper';
   }
   
@@ -47,6 +56,11 @@ export function detectContractLanguage(sourceCode) {
   const lines = sourceCode.split('\n').slice(0, 50); // Check first 50 lines
   const pythonStyleComments = lines.filter(line => line.trim().startsWith('#')).length;
   if (pythonStyleComments > 5) {
+    return 'Vyper';
+  }
+  
+  // Check for Vyper decorators (@external, @internal, @view, @pure)
+  if (/@external|@internal|@view|@pure/.test(sourceCode)) {
     return 'Vyper';
   }
   

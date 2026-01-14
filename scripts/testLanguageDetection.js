@@ -22,6 +22,16 @@ function testLanguageDetection() {
       expected: 'Vyper',
     },
     {
+      name: 'Vyper contract with # pragma version (0.3.x)',
+      code: '# pragma version 0.3.10\n# pragma optimize codesize\n@external\ndef foo():\n    pass',
+      expected: 'Vyper',
+    },
+    {
+      name: 'Vyper contract with decorators',
+      code: '@external\n@view\ndef foo() -> uint256:\n    return 42',
+      expected: 'Vyper',
+    },
+    {
       name: 'Vyper contract with Python comments',
       code: '# Comment 1\n# Comment 2\n# Comment 3\n# Comment 4\n# Comment 5\n# Comment 6\n@external\ndef foo():\n    pass',
       expected: 'Vyper',
