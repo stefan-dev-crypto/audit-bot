@@ -255,7 +255,7 @@ export class ContractTracker {
       // Write the flattened file
       fs.writeFileSync(filePath, flattenedSource, 'utf8');
       
-      console.log(`   📄 Saved to: ${fileName}`);
+      // File saved silently (address already logged)
       
       // Increment index for next contract
       this.contractIndex++;

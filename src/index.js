@@ -41,7 +41,7 @@ async function main() {
       const stats = backgroundAuditor.getStats();
       if (stats.unauditedCount > 0 || stats.currentlyAuditing) {
         const nextInfo = stats.nextToAudit ? ` | Next: ${stats.nextToAudit}` : '';
-        console.log(`\n📊 [Audit Queue] Unaudited: ${stats.unauditedCount}${nextInfo} | Currently auditing: ${stats.currentlyAuditing || 'None'}`);
+        console.log(`📊 Queue: ${stats.unauditedCount} unaudited${nextInfo} | Auditing: ${stats.currentlyAuditing || 'None'}`);
       }
     }, 60000); // Every 60 seconds
     
@@ -57,11 +57,9 @@ async function main() {
       console.log('\n\n📊 Final Statistics:');
       const listenerStats = listener.getStats();
       const auditorStats = backgroundAuditor.getStats();
-      console.log(`Total contracts processed: ${listenerStats.totalProcessed}`);
-      console.log(`Unaudited contracts: ${auditorStats.unauditedCount}`);
-      console.log('');
+      console.log(`Processed: ${listenerStats.totalProcessed} | Unaudited: ${auditorStats.unauditedCount}`);
       statistics.displayStats();
-      console.log('\n👋 Shutting down gracefully...');
+      console.log('\n👋 Shutting down...');
       backgroundAuditor.stop();
       listener.stop();
       process.exit(0);

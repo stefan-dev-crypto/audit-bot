@@ -111,7 +111,6 @@ export class BackgroundAuditor {
 
       // Found an unaudited contract - audit it
       const sourceFilePath = path.join(this.sourcesDir, file);
-      console.log(`   📋 Processing contract #${file.match(/^(\d+)_/)[1]}: ${contractAddress}`);
       await this.auditContract(contractAddress, sourceFilePath);
 
       // Rate limiting delay
@@ -128,30 +127,25 @@ export class BackgroundAuditor {
     this.currentlyAuditing = contractAddress;
 
     try {
-      console.log(`\n🔍 [Background Auditor] Auditing: ${contractAddress}`);
-      
       const result = await this.auditor.auditContract(contractAddress, sourceFilePath);
 
       if (result.skipped) {
-        console.log(`   ⏭️  Skipped (already audited)`);
+        return; // Skip silently
       } else if (result.error) {
         console.log(`   ❌ Audit failed: ${result.error}`);
       } else {
         if (result.hasVulnerabilities) {
-          console.log(`   🚨 CRITICAL VULNERABILITIES FOUND!`);
-          console.log(`   📊 Attack Surface: ${result.attackSurface.join(', ')}`);
-          console.log(`   🔴 Issues: ${result.criticalIssuesCount}`);
-          console.log(`   📝 Types: ${result.vulnerabilityNames.join(', ')}`);
+          console.log(`   🚨 VULN: ${contractAddress} | ${result.criticalIssuesCount} issue(s): ${result.vulnerabilityNames.join(', ')} | Surface: ${result.attackSurface.join(', ')}`);
         } else {
-          console.log(`   ✅ Clean (no critical vulnerabilities)`);
+          console.log(`   ✅ Clean: ${contractAddress}`);
         }
       }
     } catch (error) {
-      console.error(`   ❌ Error auditing ${contractAddress}:`, error.message);
+      console.error(`   ❌ Error: ${contractAddress} - ${error.message}`);
       
       // If rate limited, wait longer
       if (error.message.includes('Rate limited')) {
-        console.log('   ⏸️  Rate limited - waiting 60 seconds...');
+        console.log('   ⏸️  Rate limited - waiting 60s...');
         await this.sleep(60000);
       }
     } finally {

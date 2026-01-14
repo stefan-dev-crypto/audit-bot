@@ -222,22 +222,15 @@ Classify the result using this JSON format:
    */
   async auditContract(contractAddress, sourceFilePath) {
     try {
-      console.log(`\n🔍 Auditing contract: ${contractAddress}`);
-      
       // Check if already audited
       if (this.isAudited(contractAddress)) {
-        console.log(`   ⏭️  Already audited, skipping...`);
         return { skipped: true, address: contractAddress };
       }
-      
-      // Prepare contract for auditing
-      console.log(`   📤 Preparing contract for OpenAI audit...`);
       
       // Read contract content for chat completion
       const contractContent = fs.readFileSync(sourceFilePath, 'utf8');
       
       // Create a completion using chat API with file content
-      console.log(`   🤖 Requesting audit from OpenAI...`);
       const response = await this.client.chat.completions.create({
         model: 'gpt-4-turbo-preview',
         response_format: { type: 'json_object' },

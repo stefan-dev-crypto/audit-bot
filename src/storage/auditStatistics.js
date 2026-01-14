@@ -102,18 +102,7 @@ export class AuditStatistics {
   displayStats() {
     const stats = this.getStats();
     
-    console.log('\n' + '='.repeat(80));
-    console.log('📊 AUDIT STATISTICS');
-    console.log('='.repeat(80));
-    console.log(`Total Contracts Fetched:     ${stats.totalFetched}`);
-    console.log(`Total Contracts Audited:      ${stats.totalAudited}`);
-    console.log(`Pending Audit:                ${stats.pendingAudit}`);
-    console.log('');
-    console.log(`With Critical Vulnerabilities: ${stats.withVulnerabilities} (${stats.vulnerabilityRate})`);
-    console.log(`Without Vulnerabilities:       ${stats.withoutVulnerabilities} (${stats.cleanRate})`);
-    console.log('');
-    console.log(`Last Updated: ${stats.lastUpdated}`);
-    console.log('='.repeat(80) + '\n');
+    console.log(`\n📊 Stats: Fetched=${stats.totalFetched} | Audited=${stats.totalAudited} | Pending=${stats.pendingAudit} | Vuln=${stats.withVulnerabilities} (${stats.vulnerabilityRate}) | Clean=${stats.withoutVulnerabilities} (${stats.cleanRate})`);
   }
 
   /**

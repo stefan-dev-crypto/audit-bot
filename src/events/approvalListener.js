@@ -93,65 +93,35 @@ export class ApprovalListener {
       const spender = parsed.args.spender;
       const value = parsed.args.value;
       
-      console.log('\n' + '='.repeat(80));
-      console.log('🔔 New Approval Event Detected');
-      console.log('='.repeat(80));
-      console.log(`Token:        ${log.address}`);
-      console.log(`Owner:        ${owner}`);
-      console.log(`Spender:      ${spender}`);
-      console.log(`Value:        ${value.toString()}`);
-      console.log(`Block:        ${log.blockNumber}`);
-      console.log(`Tx Hash:      ${log.transactionHash}`);
-      
       // Check if spender is a contract
       const spenderIsContract = await isContract(spender, this.provider);
       
       if (!spenderIsContract) {
-        console.log('ℹ️  Spender is not a contract (EOA), skipping...');
-        return;
+        return; // Skip EOA addresses silently
       }
-      
-      console.log('✅ Spender is a contract');
       
       // Check if we've already processed this contract
       if (this.tracker.isProcessed(spender)) {
-        console.log('ℹ️  Contract already processed, skipping duplicate fetch...');
-        console.log('='.repeat(80) + '\n');
-        return;
+        return; // Skip already processed contracts silently
       }
       
-      console.log('🔍 Fetching contract source code from Etherscan...');
+      console.log(`🔔 Approval → Spender: ${spender} | Token: ${log.address}`);
       
       // Fetch contract source code
       const contractData = await fetchContractSource(spender, this.chainConfig);
       
       if (contractData.verified) {
-        console.log('✅ Contract source code fetched successfully');
-        console.log(`   Contract Name: ${contractData.contractName}`);
-        console.log(`   Compiler:      ${contractData.compilerVersion}`);
-        console.log(`   License:       ${contractData.licenseType}`);
-        console.log(`   Proxy:         ${contractData.proxy === '1' ? 'Yes' : 'No'}`);
-        
-        if (contractData.proxy === '1' && contractData.implementation) {
-          console.log(`   Implementation: ${contractData.implementation}`);
-        }
+        const proxyInfo = contractData.proxy === '1' ? ` [Proxy→${contractData.implementation?.slice(0, 10)}...]` : '';
+        console.log(`   ✅ Fetched: ${contractData.contractName || 'Unknown'}${proxyInfo} | Queued for audit`);
         
         // Save contract source as single flattened file
-        const sourceFilePath = this.tracker.saveContractSource(spender, contractData);
-        
-        // Note: Auditing happens in parallel via BackgroundAuditor
-        // The source file will be audited automatically by the background process
-        if (sourceFilePath) {
-          console.log(`   ℹ️  Contract queued for background auditing`);
-        }
+        this.tracker.saveContractSource(spender, contractData);
       } else {
-        console.log('⚠️  Contract source code not verified on Etherscan');
+        console.log(`   ⚠️  Not verified on Etherscan`);
       }
       
       // Mark contract as processed
       this.tracker.markAsProcessed(spender);
-      
-      console.log('='.repeat(80) + '\n');
       
     } catch (error) {
       console.error('Error handling approval event:', error.message);
