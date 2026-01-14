@@ -1,0 +1,86 @@
+Contract Address: 0xf5042e6ffac5a625d4e7848e0b01373d8eb9e222
+Source File: 65_0xf5042e6ffac5a625d4e7848e0b01373d8eb9e222.sol
+Audit Date: 2026-01-14T17:27:58.496Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+Any general external user can steal all ETH, ERC20, ERC721, and ERC1155 tokens held by this contract due to the publicly callable `cleanupErc20s`, `cleanupNative`, and ERC721/1155 receiver methods.
+
+Attack Surface: ETH, ERC20, ERC721, ERC1155
+
+
+Critical Issues Found:
+
+1. Unrestricted Token/Ether Sweep Functions
+   Type: Unrestricted access to fund withdrawal
+   Function: cleanupErc20s,cleanupNative,cleanupErc20sViaCall,cleanupNativeViaCall
+   
+   Attack Scenario:
+   A general external user can call `cleanupErc20s` or `cleanupNative` to transfer all ERC20 tokens or ETH in the contract to themselves or any address they specify. Similarly, `cleanupErc20sViaCall` and `cleanupNativeViaCall` allow a caller to sweep all tokens or ETH using arbitrary call data.
+   
+   Impact:
+   Complete loss of all ETH and ERC20 tokens held by the contract at any time to any external user.
+   
+   Recommended Fix:
+   Restrict the ability to call these cleanup functions to only privileged accounts (e.g., contract owner or a trusted address list).
+
+
+2. Unprotected ERC721 and ERC1155 Receiver Hooks
+   Type: Unrestricted NFT withdrawal
+   Function: onERC721Received,onERC1155Received,onERC1155BatchReceived
+   
+   Attack Scenario:
+   A general external user can front-run or set the NFT recipient to themselves via multicall or direct storage manipulation, then transfer any NFT sent to the contract out to themselves using the receiver hook logic.
+   
+   Impact:
+   Complete theft of any ERC721 or ERC1155 tokens held by the contract by any general user.
+   
+   Recommended Fix:
+   Restrict recipient setting and ensure receiver hooks can only be triggered in a trusted context, or only by privileged users.
+
+
+
+==============================================================================
+
+Raw JSON:
+{
+  "critical_vulnerability_exists": true,
+  "summary": "Any general external user can steal all ETH, ERC20, ERC721, and ERC1155 tokens held by this contract due to the publicly callable `cleanupErc20s`, `cleanupNative`, and ERC721/1155 receiver methods.",
+  "attack_surface": [
+    "ETH",
+    "ERC20",
+    "ERC721",
+    "ERC1155"
+  ],
+  "critical_issues": [
+    {
+      "title": "Unrestricted Token/Ether Sweep Functions",
+      "vulnerability_type": "Unrestricted access to fund withdrawal",
+      "affected_function": [
+        "cleanupErc20s",
+        "cleanupNative",
+        "cleanupErc20sViaCall",
+        "cleanupNativeViaCall"
+      ],
+      "attack_scenario": "A general external user can call `cleanupErc20s` or `cleanupNative` to transfer all ERC20 tokens or ETH in the contract to themselves or any address they specify. Similarly, `cleanupErc20sViaCall` and `cleanupNativeViaCall` allow a caller to sweep all tokens or ETH using arbitrary call data.",
+      "impact": "Complete loss of all ETH and ERC20 tokens held by the contract at any time to any external user.",
+      "recommended_fix": "Restrict the ability to call these cleanup functions to only privileged accounts (e.g., contract owner or a trusted address list)."
+    },
+    {
+      "title": "Unprotected ERC721 and ERC1155 Receiver Hooks",
+      "vulnerability_type": "Unrestricted NFT withdrawal",
+      "affected_function": [
+        "onERC721Received",
+        "onERC1155Received",
+        "onERC1155BatchReceived"
+      ],
+      "attack_scenario": "A general external user can front-run or set the NFT recipient to themselves via multicall or direct storage manipulation, then transfer any NFT sent to the contract out to themselves using the receiver hook logic.",
+      "impact": "Complete theft of any ERC721 or ERC1155 tokens held by the contract by any general user.",
+      "recommended_fix": "Restrict recipient setting and ensure receiver hooks can only be triggered in a trusted context, or only by privileged users."
+    }
+  ]
+}

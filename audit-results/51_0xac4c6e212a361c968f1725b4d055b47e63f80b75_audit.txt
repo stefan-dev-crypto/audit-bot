@@ -1,0 +1,53 @@
+Contract Address: 0xac4c6e212a361c968f1725b4d055b47e63f80b75
+Source File: 51_0xac4c6e212a361c968f1725b4d055b47e63f80b75.sol
+Audit Date: 2026-01-14T17:08:16.059Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The contract allows a general external user to execute arbitrary external calls via SafeExecutor with msg.value, leading to potential ETH and token theft from the contract by anyone.
+
+Attack Surface: ETH, ERC20
+
+
+Critical Issues Found:
+
+1. Arbitrary Call with Value via SafeExecutor
+   Type: Unrestricted External Call
+   Function: snwap / snwapMultiple (through SafeExecutor.execute/executeMultiple)
+   
+   Attack Scenario:
+   A general user can call snwap or snwapMultiple, specify arbitrary executor/executorData, and cause the contract to forward arbitrary calls (including with ETH) to any receiver. If tokens/ETH are sitting in the contract, the attacker can drain them via a malicious executor contract with a custom payload. Example: pass an executorData that invokes malicious logic on RedSnwapper itself or on any arbitrary contract to transfer out all tokens/ETH.
+   
+   Impact:
+   Immediate and complete theft of all ETH and ERC20 tokens held by the contract.
+   
+   Recommended Fix:
+   Restrict the executor to only trusted contracts and sanitize executorData payloads; do not allow arbitrary external calls or arbitrary value forwarding from general users. Strongly consider removing direct arbitrary call indirection capabilities.
+
+
+
+==============================================================================
+
+Raw JSON:
+{
+  "critical_vulnerability_exists": true,
+  "summary": "The contract allows a general external user to execute arbitrary external calls via SafeExecutor with msg.value, leading to potential ETH and token theft from the contract by anyone.",
+  "attack_surface": [
+    "ETH",
+    "ERC20"
+  ],
+  "critical_issues": [
+    {
+      "title": "Arbitrary Call with Value via SafeExecutor",
+      "vulnerability_type": "Unrestricted External Call",
+      "affected_function": "snwap / snwapMultiple (through SafeExecutor.execute/executeMultiple)",
+      "attack_scenario": "A general user can call snwap or snwapMultiple, specify arbitrary executor/executorData, and cause the contract to forward arbitrary calls (including with ETH) to any receiver. If tokens/ETH are sitting in the contract, the attacker can drain them via a malicious executor contract with a custom payload. Example: pass an executorData that invokes malicious logic on RedSnwapper itself or on any arbitrary contract to transfer out all tokens/ETH.",
+      "impact": "Immediate and complete theft of all ETH and ERC20 tokens held by the contract.",
+      "recommended_fix": "Restrict the executor to only trusted contracts and sanitize executorData payloads; do not allow arbitrary external calls or arbitrary value forwarding from general users. Strongly consider removing direct arbitrary call indirection capabilities."
+    }
+  ]
+}

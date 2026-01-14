@@ -6,10 +6,11 @@
 import fs from 'fs';
 import path from 'path';
 import { fetchContractSource } from '../api/etherscan.js';
-import { OpenAIAuditor } from '../audit/openaiAuditor.js';
+import { AuditorPool } from '../audit/auditorPool.js';
 import { detectContractLanguage, cleanPragmaStatements } from '../utils/contractValidator.js';
 import { optimizeForAudit } from '../utils/contractOptimizer.js';
 import { SETTINGS } from '../config/settings.js';
+import { getOpenAIKeys, getTelegramConfig } from '../config/apiKeys.js';
 
 export class BackgroundProcessor {
   constructor(dataDir = './data', chainConfig, statistics = null) {
@@ -18,12 +19,18 @@ export class BackgroundProcessor {
     this.statistics = statistics;
     this.processedContractsFile = path.join(dataDir, 'processed-contracts.json');
     this.tempDir = path.join(dataDir, 'temp');
-    this.auditor = new OpenAIAuditor(process.env.OPENAI_API_KEY, statistics);
+    
+    // Initialize auditor pool with multiple API keys for parallel processing
+    const apiKeys = getOpenAIKeys();
+    const telegramConfig = getTelegramConfig();
+    this.auditorPool = new AuditorPool(apiKeys, telegramConfig);
+    
     this.isRunning = false;
     this.checkInterval = SETTINGS.FETCHER_CHECK_INTERVAL;
-    this.processDelay = SETTINGS.OPENAI_AUDIT_DELAY; // Slower delay since we're doing both
-    this.currentlyProcessing = null;
+    this.processDelay = 2000; // Reduced delay since we have parallel auditors
+    this.currentlyProcessing = [];
     this.contractIndex = 1;
+    this.maxConcurrentProcessing = apiKeys.length; // Process as many as we have auditors
     
     this.initialize();
   }
@@ -82,7 +89,7 @@ export class BackgroundProcessor {
   }
 
   /**
-   * Check for unprocessed contracts and process them
+   * Check for unprocessed contracts and process them (in parallel)
    */
   async checkAndProcessContracts() {
     // Load processed contracts (detected addresses)
@@ -101,26 +108,35 @@ export class BackgroundProcessor {
 
     // Find contracts that haven't been audited yet
     const unauditedContracts = processedContracts.filter(
-      address => !this.auditor.isAudited(address)
+      address => !this.auditorPool.isAudited(address) && !this.currentlyProcessing.includes(address)
     );
 
     if (unauditedContracts.length === 0) {
       return;
     }
 
-    // Process contracts one by one
-    for (const contractAddress of unauditedContracts) {
+    // Process multiple contracts in parallel (up to maxConcurrentProcessing)
+    const processingPromises = [];
+    const contractsToProcess = unauditedContracts.slice(0, this.maxConcurrentProcessing - this.currentlyProcessing.length);
+    
+    for (const contractAddress of contractsToProcess) {
       if (!this.isRunning) break;
 
-      // Skip if currently processing this contract
-      if (this.currentlyProcessing === contractAddress) {
-        continue;
-      }
+      // Start processing in parallel (don't await)
+      const promise = this.processContract(contractAddress)
+        .catch(error => {
+          console.error(`❌ Processing error for ${contractAddress}:`, error.message);
+        });
+      
+      processingPromises.push(promise);
+      
+      // Small delay to stagger the starts
+      await this.sleep(500);
+    }
 
-      await this.processContract(contractAddress);
-
-      // Rate limiting delay
-      await this.sleep(this.processDelay);
+    // Wait for all processing to complete
+    if (processingPromises.length > 0) {
+      await Promise.allSettled(processingPromises);
     }
   }
 
@@ -128,7 +144,8 @@ export class BackgroundProcessor {
    * Process a single contract: fetch then audit
    */
   async processContract(contractAddress) {
-    this.currentlyProcessing = contractAddress;
+    // Add to currently processing list
+    this.currentlyProcessing.push(contractAddress);
 
     try {
       console.log(`\n🔄 [Processor] Processing: ${contractAddress}`);
@@ -139,8 +156,8 @@ export class BackgroundProcessor {
 
       if (!contractData.verified) {
         console.log(`   ⚠️  Not verified on Etherscan`);
-        // Mark as audited to avoid retrying
-        this.auditor.recordAuditResult(contractAddress, false, [], false, null);
+        // Mark as audited to avoid retrying (using first auditor for recording)
+        this.auditorPool.auditors[0].auditor.recordAuditResult(contractAddress, false, [], false, null);
         return;
       }
 
@@ -150,7 +167,7 @@ export class BackgroundProcessor {
       
       if (!sourceContent) {
         console.log(`   ⏭️  Skipped: Non-Solidity or invalid contract`);
-        this.auditor.recordAuditResult(contractAddress, false, [], false, null);
+        this.auditorPool.auditors[0].auditor.recordAuditResult(contractAddress, false, [], false, null);
         return;
       }
 
@@ -159,9 +176,9 @@ export class BackgroundProcessor {
       fs.writeFileSync(tempFilePath, sourceContent, 'utf8');
       this.contractIndex++;
 
-      // Step 4: Audit with OpenAI
-      console.log(`   🤖 Auditing with OpenAI...`);
-      const auditResult = await this.auditor.auditContract(contractAddress, tempFilePath);
+      // Step 4: Audit with OpenAI (using auditor pool for parallel processing)
+      console.log(`   🤖 Auditing with OpenAI (parallel)...`);
+      const auditResult = await this.auditorPool.auditContract(contractAddress, tempFilePath);
 
       // Step 5: Delete temporary file
       try {
@@ -180,16 +197,20 @@ export class BackgroundProcessor {
     } catch (error) {
       console.error(`   ❌ Process failed: ${error.message}`);
       
-      // Record as failed audit
-      this.auditor.recordAuditResult(contractAddress, false, [], true, error.message);
+      // Record as failed audit (using first auditor for recording)
+      this.auditorPool.auditors[0].auditor.recordAuditResult(contractAddress, false, [], true, error.message);
       
-      // If rate limited, wait longer
+      // If rate limited, wait longer (less common with parallel processing)
       if (error.message.includes('Rate limit') || error.message.includes('429')) {
         console.log(`   ⏸️  Rate limited - waiting ${SETTINGS.OPENAI_RATE_LIMIT_WAIT / 1000}s...`);
         await this.sleep(SETTINGS.OPENAI_RATE_LIMIT_WAIT);
       }
     } finally {
-      this.currentlyProcessing = null;
+      // Remove from currently processing list
+      const index = this.currentlyProcessing.indexOf(contractAddress);
+      if (index > -1) {
+        this.currentlyProcessing.splice(index, 1);
+      }
     }
   }
 

@@ -5,20 +5,27 @@
 
 import fs from 'fs';
 import path from 'path';
-import { OpenAIAuditor } from './openaiAuditor.js';
+import { AuditorPool } from './auditorPool.js';
 import { AuditStatistics } from '../storage/auditStatistics.js';
+import { getOpenAIKeys, getTelegramConfig } from '../config/apiKeys.js';
 
 export class BackgroundAuditor {
   constructor(dataDir = './data', statistics = null) {
     this.dataDir = dataDir;
     this.sourcesDir = path.join(dataDir, 'sources');
     this.statistics = statistics || new AuditStatistics(dataDir);
-    this.auditor = new OpenAIAuditor(process.env.OPENAI_API_KEY, this.statistics);
+    
+    // Initialize auditor pool with multiple API keys for parallel auditing
+    const apiKeys = getOpenAIKeys();
+    const telegramConfig = getTelegramConfig();
+    this.auditorPool = new AuditorPool(apiKeys, telegramConfig);
+    
     this.isRunning = false;
-    this.checkInterval = 10000; // Check every 10 seconds
-    this.auditDelay = 10000; // 10 seconds delay between audits (avoid OpenAI rate limits)
-    this.currentlyAuditing = null;
+    this.checkInterval = 5000; // Check every 5 seconds (faster with parallel processing)
+    this.auditDelay = 2000; // Reduced delay with parallel auditors
+    this.currentlyAuditing = [];
     this.rateLimitWaitTime = 60000; // Wait 60s when rate limited
+    this.maxConcurrentAudits = apiKeys.length; // Audit as many as we have auditors
   }
 
   /**
@@ -66,7 +73,7 @@ export class BackgroundAuditor {
   }
 
   /**
-   * Check for unaudited contracts and audit them in order by index number
+   * Check for unaudited contracts and audit them in parallel
    */
   async checkAndAuditContracts() {
     // Get list of all source files
@@ -90,45 +97,65 @@ export class BackgroundAuditor {
       return;
     }
 
-    // Check each source file in order
+    // Find unaudited contracts
+    const unauditedFiles = [];
     for (const file of sourceFiles) {
-      if (!this.isRunning) break;
-
       // Extract contract address from filename (format: index_address.sol)
       const match = file.match(/_([0-9a-fx]+)\.sol$/i);
       if (!match) continue;
 
       const contractAddress = match[1];
       
-      // Check if already audited
-      if (this.auditor.isAudited(contractAddress)) {
+      // Check if already audited or currently auditing
+      if (this.auditorPool.isAudited(contractAddress) || this.currentlyAuditing.includes(contractAddress)) {
         continue;
       }
 
-      // Check if currently auditing this contract
-      if (this.currentlyAuditing === contractAddress) {
-        continue;
-      }
+      unauditedFiles.push({ file, contractAddress });
+    }
 
-      // Found an unaudited contract - audit it
+    if (unauditedFiles.length === 0) {
+      return;
+    }
+
+    // Process multiple contracts in parallel
+    const auditPromises = [];
+    const contractsToAudit = unauditedFiles.slice(0, this.maxConcurrentAudits - this.currentlyAuditing.length);
+
+    for (const { file, contractAddress } of contractsToAudit) {
+      if (!this.isRunning) break;
+
       const sourceFilePath = path.join(this.sourcesDir, file);
-      await this.auditContract(contractAddress, sourceFilePath);
+      
+      // Start auditing in parallel (don't await)
+      const promise = this.auditContract(contractAddress, sourceFilePath)
+        .catch(error => {
+          console.error(`❌ Audit error for ${contractAddress}:`, error.message);
+        });
+      
+      auditPromises.push(promise);
+      
+      // Small delay to stagger the starts
+      await this.sleep(500);
+    }
 
-      // Rate limiting delay
-      await this.sleep(this.auditDelay);
+    // Wait for all audits to complete
+    if (auditPromises.length > 0) {
+      await Promise.allSettled(auditPromises);
     }
   }
 
   /**
-   * Audit a single contract
+   * Audit a single contract using parallel auditor pool
    * @param {string} contractAddress - Contract address
    * @param {string} sourceFilePath - Path to source file
    */
   async auditContract(contractAddress, sourceFilePath) {
-    this.currentlyAuditing = contractAddress;
+    // Add to currently auditing list
+    this.currentlyAuditing.push(contractAddress);
 
     try {
-      const result = await this.auditor.auditContract(contractAddress, sourceFilePath);
+      const result = await this.auditorPool.auditContract(contractAddress, sourceFilePath);
 
       if (result.skipped) {
         return; // Skip silently
@@ -144,13 +171,17 @@ export class BackgroundAuditor {
     } catch (error) {
       console.error(`   ❌ Error: ${contractAddress} - ${error.message}`);
       
-      // If rate limited, wait longer
+      // If rate limited, wait longer (less common with parallel processing)
       if (error.message.includes('Rate limit') || error.message.includes('429')) {
         console.log(`   ⏸️  Rate limited - waiting ${this.rateLimitWaitTime / 1000}s...`);
         await this.sleep(this.rateLimitWaitTime);
       }
     } finally {
-      this.currentlyAuditing = null;
+      // Remove from currently auditing list
+      const index = this.currentlyAuditing.indexOf(contractAddress);
+      if (index > -1) {
+        this.currentlyAuditing.splice(index, 1);
+      }
     }
   }
 
@@ -184,7 +215,7 @@ export class BackgroundAuditor {
       .sort((a, b) => a.index - b.index);
 
     const unaudited = sourceFiles.filter(item => {
-      return !this.auditor.isAudited(item.address);
+      return !this.auditorPool.isAudited(item.address);
     });
 
     const nextToAudit = unaudited.length > 0 ? {

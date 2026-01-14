@@ -1,13 +1,14 @@
 import fs from 'fs';
 import path from 'path';
 import OpenAI from 'openai';
+import { sendVulnerabilityAlert } from '../notifications/telegram.js';
 
 /**
  * OpenAI Auditor
  * Audits contract source code using OpenAI API
  */
 export class OpenAIAuditor {
-  constructor(apiKey) {
+  constructor(apiKey, telegramConfig = null) {
     this.client = new OpenAI({
       apiKey: apiKey || process.env.OPENAI_API_KEY,
     });
@@ -15,6 +16,10 @@ export class OpenAIAuditor {
     this.auditResultsDir = path.join(process.cwd(), 'audit-results');
     this.auditedContractsFile = path.join(process.cwd(), 'data', 'audited-contracts.json');
     this.auditedContracts = new Set();
+    this.auditResultIndex = 0; // Independent index for audit results, starting from 0
+    
+    // Telegram configuration
+    this.telegramConfig = telegramConfig;
     
     this.systemPrompt = `
 You are a senior Solidity smart contract security auditor.
@@ -75,8 +80,38 @@ Classify the result using this JSON format:
       fs.mkdirSync(this.auditResultsDir, { recursive: true });
     }
     
+    // Calculate next audit result index from existing files
+    this.calculateNextAuditIndex();
+    
     // Load previously audited contracts
     this.loadAuditedContracts();
+  }
+  
+  /**
+   * Calculate the next audit result index from existing files
+   */
+  calculateNextAuditIndex() {
+    try {
+      if (!fs.existsSync(this.auditResultsDir)) {
+        this.auditResultIndex = 0;
+        return;
+      }
+
+      const files = fs.readdirSync(this.auditResultsDir);
+      const indices = files
+        .filter(f => f.endsWith('_audit.txt'))
+        .map(file => {
+          // Extract index from filename (format: index_address_audit.txt)
+          const match = file.match(/^(\d+)_/);
+          return match ? parseInt(match[1]) : -1;
+        })
+        .filter(index => index >= 0);
+
+      this.auditResultIndex = indices.length > 0 ? Math.max(...indices) + 1 : 0;
+    } catch (error) {
+      console.error('Error calculating audit result index:', error.message);
+      this.auditResultIndex = 0;
+    }
   }
   
   /**
@@ -145,12 +180,69 @@ Classify the result using this JSON format:
   
   /**
    * Check if a contract has been audited
+   * Always checks the file to ensure we have the latest state (important after restarts)
    * @param {string} address - Contract address
    * @returns {boolean} True if already audited
    */
   isAudited(address) {
     const normalizedAddress = address.toLowerCase();
-    return this.auditedContracts.has(normalizedAddress);
+    
+    // First check in-memory Set (fast)
+    if (this.auditedContracts.has(normalizedAddress)) {
+      return true;
+    }
+    
+    // If not in Set, check file directly (ensures we catch contracts audited before restart)
+    // This is important for persistence across bot restarts
+    try {
+      // Check main file
+      if (fs.existsSync(this.auditedContractsFile)) {
+        const data = fs.readFileSync(this.auditedContractsFile, 'utf8');
+        const auditedData = JSON.parse(data);
+        
+        // Support both old array format and new object format
+        if (Array.isArray(auditedData)) {
+          if (auditedData.includes(normalizedAddress)) {
+            // Update Set for future checks
+            this.auditedContracts.add(normalizedAddress);
+            return true;
+          }
+        } else if (typeof auditedData === 'object') {
+          if (auditedData[normalizedAddress]) {
+            // Update Set for future checks
+            this.auditedContracts.add(normalizedAddress);
+            return true;
+          }
+        }
+      }
+      
+      // Check split files if they exist
+      const dataDir = path.dirname(this.auditedContractsFile);
+      if (fs.existsSync(dataDir)) {
+        const files = fs.readdirSync(dataDir);
+        const splitFiles = files.filter(f => f.match(/^audited-contracts-\d+\.json$/));
+        
+        for (const file of splitFiles) {
+          const filePath = path.join(dataDir, file);
+          const data = fs.readFileSync(filePath, 'utf8');
+          const auditedData = JSON.parse(data);
+          
+          if (typeof auditedData === 'object' && !Array.isArray(auditedData)) {
+            if (auditedData[normalizedAddress]) {
+              // Update Set for future checks
+              this.auditedContracts.add(normalizedAddress);
+              return true;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      // If file read fails, fall back to in-memory Set
+      // This shouldn't happen often, but we want to be resilient
+      console.error(`Warning: Error checking audited contracts file for ${normalizedAddress}:`, error.message);
+    }
+    
+    return false;
   }
   
   /**
@@ -195,6 +287,17 @@ Classify the result using this JSON format:
         }
       }
       
+      // Check if already recorded (prevent overwriting existing audits)
+      if (auditedData[normalizedAddress] && !failed) {
+        // Contract already audited - don't overwrite unless this is a failed audit retry
+        const existing = auditedData[normalizedAddress];
+        if (!existing.failed) {
+          // Already has a successful audit - skip recording
+          console.log(`   ⚠️  Contract ${normalizedAddress} already audited - skipping duplicate record`);
+          return;
+        }
+      }
+      
       // Update with new audit result
       auditedData[normalizedAddress] = {
         hasVulnerabilities: failed ? null : hasVulnerabilities,
@@ -225,16 +328,23 @@ Classify the result using this JSON format:
    * @returns {Promise<Object>} Audit result
    */
   async auditContract(contractAddress, sourceFilePath) {
+    const normalizedAddress = contractAddress.toLowerCase();
+    
+    // Double-check with file lock to prevent race conditions
+    // First check: in-memory Set (fast)
+    if (this.auditedContracts.has(normalizedAddress)) {
+      return { skipped: true, address: contractAddress };
+    }
+    
+    // Second check: file directly (prevents race conditions in parallel processing)
+    // This is critical - checks the actual file to catch contracts audited before restart
+    if (this.isAudited(contractAddress)) {
+      // Contract was found in file, add to Set and skip
+      this.auditedContracts.add(normalizedAddress);
+      return { skipped: true, address: contractAddress };
+    }
+    
     try {
-      // Check if already audited
-      if (this.isAudited(contractAddress)) {
-        return { skipped: true, address: contractAddress };
-      }
-      
-      // Extract index from source file name (format: index_address.sol)
-      const sourceFileName = path.basename(sourceFilePath);
-      const indexMatch = sourceFileName.match(/^(\d+)_/);
-      const index = indexMatch ? indexMatch[1] : '';
       
       // Read contract source (don't upload file - .sol is not supported)
       const contractSource = fs.readFileSync(sourceFilePath, "utf8");
@@ -286,10 +396,8 @@ ${contractSource}
       let resultFilePathTxt = null;
       
       if (hasVulnerabilities) {
-        // Include index in filename to match source file naming
-        const resultFileNameTxt = index 
-          ? `${index}_${contractAddress.toLowerCase()}_audit.txt`
-          : `${contractAddress.toLowerCase()}_audit.txt`;
+        // Use independent audit result index (starting from 0)
+        const resultFileNameTxt = `${this.auditResultIndex}_${contractAddress.toLowerCase()}_audit.txt`;
         resultFilePathTxt = path.join(this.auditResultsDir, resultFileNameTxt);
         
         // Save human-readable format
@@ -333,12 +441,25 @@ ${JSON.stringify(auditResult, null, 2)}
       
         fs.writeFileSync(resultFilePathTxt, resultContent, 'utf8');
         console.log(`   💾 Audit result saved: ${path.basename(resultFileNameTxt)}`);
+        
+        // Increment index for next audit result
+        this.auditResultIndex++;
       }
       
       if (hasVulnerabilities) {
         console.log(`   🚨 CRITICAL VULNERABILITIES FOUND!`);
         console.log(`   📊 Attack Surface: ${auditResult.attack_surface.join(', ')}`);
         console.log(`   🔴 Issues: ${auditResult.critical_issues.length}`);
+        
+        // Send Telegram notification if configured
+        if (this.telegramConfig && this.telegramConfig.botToken && this.telegramConfig.chatId) {
+          await sendVulnerabilityAlert(
+            contractAddress,
+            vulnerabilityNames,
+            this.telegramConfig.botToken,
+            this.telegramConfig.chatId
+          );
+        }
       } else {
         console.log(`   ✅ No critical vulnerabilities found`);
         console.log(`   ℹ️  Audit result not saved (disk space optimization)`);

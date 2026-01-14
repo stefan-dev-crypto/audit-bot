@@ -1,0 +1,99 @@
+Contract Address: 0x5eaa10f99e7e6d177ef9f74e519e319aa49f191e
+Source File: 7_0x5eaa10f99e7e6d177ef9f74e519e319aa49f191e.sol
+Audit Date: 2026-01-14T17:12:44.377Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+A general external attacker can overwrite the implementation and owner addresses, allowing them to steal all ETH and tokens held by the contract by uploading arbitrary delegatecall logic. The setStorage, setCode, and setOwner functions are fully accessible due to the proxyCallIfNotOwner modifier, making takeover trivial for any user.
+
+Attack Surface: ETH, ERC20, ERC721, ERC1155
+
+
+Critical Issues Found:
+
+1. Unrestricted Storage Write via setStorage
+   Type: Arbitrary Storage Write
+   Function: setStorage(bytes32 _key, bytes32 _value)
+   
+   Attack Scenario:
+   A general user calls setStorage to overwrite IMPLEMENTATION_KEY or OWNER_KEY, gaining control of the proxy’s logic and ownership. They can then upload malicious code or reroute calls to any contract, enabling theft of all assets held.
+   
+   Impact:
+   Full contract takeover, allowing theft of all ETH and tokens, and permanent fund lockout.
+   
+   Recommended Fix:
+   Restrict setStorage, setCode, and setOwner so only the true owner can call them, enforcing proper access control on administrative functions.
+
+
+2. Unrestricted Implementation Replacement via setCode
+   Type: Arbitrary Implementation Change
+   Function: setCode(bytes memory _code)
+   
+   Attack Scenario:
+   A general user calls setCode to deploy an attacker-controlled contract as the new implementation. All future proxy calls are delegated to code under attacker control, letting them drain all ETH and tokens or permanently lock access.
+   
+   Impact:
+   Loss of all ETH/tokens and potential permanent fund lock.
+   
+   Recommended Fix:
+   Restrict setCode to only the owner, and add thorough input validation.
+
+
+3. Unrestricted Owner Takeover via setOwner
+   Type: Unprotected Owner Setting
+   Function: setOwner(address _owner)
+   
+   Attack Scenario:
+   An attacker calls setOwner to set themselves as the contract owner, fully controlling all proxy administrative functions.
+   
+   Impact:
+   Attacker can administratively control implementation, storage, and upgrade mechanisms.
+   
+   Recommended Fix:
+   Restrict setOwner to only the legitimate owner.
+
+
+
+==============================================================================
+
+Raw JSON:
+{
+  "critical_vulnerability_exists": true,
+  "summary": "A general external attacker can overwrite the implementation and owner addresses, allowing them to steal all ETH and tokens held by the contract by uploading arbitrary delegatecall logic. The setStorage, setCode, and setOwner functions are fully accessible due to the proxyCallIfNotOwner modifier, making takeover trivial for any user.",
+  "attack_surface": [
+    "ETH",
+    "ERC20",
+    "ERC721",
+    "ERC1155"
+  ],
+  "critical_issues": [
+    {
+      "title": "Unrestricted Storage Write via setStorage",
+      "vulnerability_type": "Arbitrary Storage Write",
+      "affected_function": "setStorage(bytes32 _key, bytes32 _value)",
+      "attack_scenario": "A general user calls setStorage to overwrite IMPLEMENTATION_KEY or OWNER_KEY, gaining control of the proxy’s logic and ownership. They can then upload malicious code or reroute calls to any contract, enabling theft of all assets held.",
+      "impact": "Full contract takeover, allowing theft of all ETH and tokens, and permanent fund lockout.",
+      "recommended_fix": "Restrict setStorage, setCode, and setOwner so only the true owner can call them, enforcing proper access control on administrative functions."
+    },
+    {
+      "title": "Unrestricted Implementation Replacement via setCode",
+      "vulnerability_type": "Arbitrary Implementation Change",
+      "affected_function": "setCode(bytes memory _code)",
+      "attack_scenario": "A general user calls setCode to deploy an attacker-controlled contract as the new implementation. All future proxy calls are delegated to code under attacker control, letting them drain all ETH and tokens or permanently lock access.",
+      "impact": "Loss of all ETH/tokens and potential permanent fund lock.",
+      "recommended_fix": "Restrict setCode to only the owner, and add thorough input validation."
+    },
+    {
+      "title": "Unrestricted Owner Takeover via setOwner",
+      "vulnerability_type": "Unprotected Owner Setting",
+      "affected_function": "setOwner(address _owner)",
+      "attack_scenario": "An attacker calls setOwner to set themselves as the contract owner, fully controlling all proxy administrative functions.",
+      "impact": "Attacker can administratively control implementation, storage, and upgrade mechanisms.",
+      "recommended_fix": "Restrict setOwner to only the legitimate owner."
+    }
+  ]
+}

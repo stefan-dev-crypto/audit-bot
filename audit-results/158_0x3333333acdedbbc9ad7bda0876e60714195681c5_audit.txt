@@ -1,0 +1,55 @@
+Contract Address: 0x3333333acdedbbc9ad7bda0876e60714195681c5
+Source File: 158_0x3333333acdedbbc9ad7bda0876e60714195681c5.sol
+Audit Date: 2026-01-14T17:37:44.255Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The SigThreePoolProxy contract exposes all of its storage and funds to full control by an arbitrary external contract via the fallback() proxy to delegationTarget, which is settable by the owner. If the delegationTarget or its implementation is malicious or compromised, an external attacker can exploit any critical vulnerability in the target, or if the delegationTarget is an untrusted contract, external users may exploit delegated logic. However, the proxy contract itself (as written in the code provided) does not directly provide any method for a general user to steal funds. But the proxy pattern with a publicly callable fallback and variable target contract introduces a critical attack surface.
+
+Attack Surface: ETH, ERC20
+
+
+Critical Issues Found:
+
+1. Proxy Delegatecall to Variable Target (delegationTarget)
+   Type: Unrestricted Delegatecall
+   Function: fallback() external
+   
+   Attack Scenario:
+   If delegationTarget is ever set to an attacker-controlled contract (by owner mistake, compromise, governance attack, etc.), any call—including plain ETH transfers—can be routed to the attacker's contract and executed within the context of this proxy, giving them full control over all contract storage (including balances and tokens) and enabling theft of ETH/ERC20s/other assets held by the proxy.
+
+Even if only legitimate targets are used, if those contracts have vulnerabilities in logic (e.g. from user-callable functions), an external attacker calling this proxy can exploit those flaws with full contract permissions.
+   
+   Impact:
+   Permanent loss/theft of all ETH and ERC20 tokens held in the contract due to storage context of delegatecall.
+   
+   Recommended Fix:
+   Never allow delegationTarget to be set to arbitrary/untrusted addresses; strictly validate new implementation contract addresses. Consider using the standard OpenZeppelin TransparentUpgradeableProxy pattern where only the admin can upgrade logic and user calls cannot access admin-only functions. Always audit delegated implementation logic for re-entrancy and fund-loss vulnerabilities. As written, the code enables full critical fund loss risk if the delegationTarget is malicious or faulty.
+
+
+
+==============================================================================
+
+Raw JSON:
+{
+  "critical_vulnerability_exists": true,
+  "summary": "The SigThreePoolProxy contract exposes all of its storage and funds to full control by an arbitrary external contract via the fallback() proxy to delegationTarget, which is settable by the owner. If the delegationTarget or its implementation is malicious or compromised, an external attacker can exploit any critical vulnerability in the target, or if the delegationTarget is an untrusted contract, external users may exploit delegated logic. However, the proxy contract itself (as written in the code provided) does not directly provide any method for a general user to steal funds. But the proxy pattern with a publicly callable fallback and variable target contract introduces a critical attack surface.",
+  "attack_surface": [
+    "ETH",
+    "ERC20"
+  ],
+  "critical_issues": [
+    {
+      "title": "Proxy Delegatecall to Variable Target (delegationTarget)",
+      "vulnerability_type": "Unrestricted Delegatecall",
+      "affected_function": "fallback() external",
+      "attack_scenario": "If delegationTarget is ever set to an attacker-controlled contract (by owner mistake, compromise, governance attack, etc.), any call—including plain ETH transfers—can be routed to the attacker's contract and executed within the context of this proxy, giving them full control over all contract storage (including balances and tokens) and enabling theft of ETH/ERC20s/other assets held by the proxy.\n\nEven if only legitimate targets are used, if those contracts have vulnerabilities in logic (e.g. from user-callable functions), an external attacker calling this proxy can exploit those flaws with full contract permissions.",
+      "impact": "Permanent loss/theft of all ETH and ERC20 tokens held in the contract due to storage context of delegatecall.",
+      "recommended_fix": "Never allow delegationTarget to be set to arbitrary/untrusted addresses; strictly validate new implementation contract addresses. Consider using the standard OpenZeppelin TransparentUpgradeableProxy pattern where only the admin can upgrade logic and user calls cannot access admin-only functions. Always audit delegated implementation logic for re-entrancy and fund-loss vulnerabilities. As written, the code enables full critical fund loss risk if the delegationTarget is malicious or faulty."
+    }
+  ]
+}

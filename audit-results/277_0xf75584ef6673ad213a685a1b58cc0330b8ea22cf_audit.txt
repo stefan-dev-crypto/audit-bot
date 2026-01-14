@@ -1,0 +1,55 @@
+Contract Address: 0xf75584ef6673ad213a685a1b58cc0330b8ea22cf
+Source File: 6_0xf75584ef6673ad213a685a1b58cc0330b8ea22cf.sol
+Audit Date: 2026-01-14T18:42:07.374Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+Arbitrary external calls via 'shortcuts.call' in _execute allow a general external user to steal all ETH or tokens in EnsoRouter and EnsoShortcuts through crafted calldata.
+
+Attack Surface: ETH, ERC20, ERC721, ERC1155
+
+
+Critical Issues Found:
+
+1. Unprotected Arbitrary Call to Shortcuts Contract
+   Type: Arbitrary External Call / Delegatecall
+   Function: _execute (and thus, routeSingle, routeMulti, safeRouteSingle, safeRouteMulti)
+   
+   Attack Scenario:
+   An external user can submit a transaction with the 'data' parameter containing arbitrary encoded calldata. This is passed directly to the 'shortcuts.call' in _execute() with forwarded msg.value, allowing the attacker to instruct the EnsoShortcuts contract (which is under user control for execution via .call) to perform any action, such as transferring all ETH or any approved token held by EnsoRouter or EnsoShortcuts to the attacker's address. This could look like a crafted call to ERC20.transfer or transferFrom, ERC721 safeTransferFrom, or direct ETH transfer.
+   
+   Impact:
+   A general external attacker can drain all ETH and all ERC20/ERC721/ERC1155 tokens held by the EnsoRouter contract (and by extension also its EnsoShortcuts instance), as the data parameter can encode calls to any contract, including those that transfer assets from the router/shortcuts without restriction.
+   
+   Recommended Fix:
+   Introduce strict access controls or calldata validation to ensure that only whitelisted or authorized contracts/functions can be executed via the data parameter. Consider requiring an allowlist of targets and/or function selectors and strict input validation. Alternatively, restrict execution permission to trusted addresses only.
+
+
+
+==============================================================================
+
+Raw JSON:
+{
+  "critical_vulnerability_exists": true,
+  "summary": "Arbitrary external calls via 'shortcuts.call' in _execute allow a general external user to steal all ETH or tokens in EnsoRouter and EnsoShortcuts through crafted calldata.",
+  "attack_surface": [
+    "ETH",
+    "ERC20",
+    "ERC721",
+    "ERC1155"
+  ],
+  "critical_issues": [
+    {
+      "title": "Unprotected Arbitrary Call to Shortcuts Contract",
+      "vulnerability_type": "Arbitrary External Call / Delegatecall",
+      "affected_function": "_execute (and thus, routeSingle, routeMulti, safeRouteSingle, safeRouteMulti)",
+      "attack_scenario": "An external user can submit a transaction with the 'data' parameter containing arbitrary encoded calldata. This is passed directly to the 'shortcuts.call' in _execute() with forwarded msg.value, allowing the attacker to instruct the EnsoShortcuts contract (which is under user control for execution via .call) to perform any action, such as transferring all ETH or any approved token held by EnsoRouter or EnsoShortcuts to the attacker's address. This could look like a crafted call to ERC20.transfer or transferFrom, ERC721 safeTransferFrom, or direct ETH transfer.",
+      "impact": "A general external attacker can drain all ETH and all ERC20/ERC721/ERC1155 tokens held by the EnsoRouter contract (and by extension also its EnsoShortcuts instance), as the data parameter can encode calls to any contract, including those that transfer assets from the router/shortcuts without restriction.",
+      "recommended_fix": "Introduce strict access controls or calldata validation to ensure that only whitelisted or authorized contracts/functions can be executed via the data parameter. Consider requiring an allowlist of targets and/or function selectors and strict input validation. Alternatively, restrict execution permission to trusted addresses only."
+    }
+  ]
+}
