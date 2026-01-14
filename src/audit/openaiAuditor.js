@@ -12,7 +12,7 @@ export class OpenAIAuditor {
       apiKey: apiKey || process.env.OPENAI_API_KEY,
     });
     
-    this.auditResultsDir = path.join(process.cwd(), 'data', 'audit-results');
+    this.auditResultsDir = path.join(process.cwd(), 'audit-results');
     this.auditedContractsFile = path.join(process.cwd(), 'data', 'audited-contracts.json');
     this.auditedContracts = new Set();
     
@@ -231,54 +231,49 @@ Classify the result using this JSON format:
         return { skipped: true, address: contractAddress };
       }
       
-      // Upload contract file to OpenAI
-      const file = await this.client.files.create({
-        file: fs.createReadStream(sourceFilePath),
-        purpose: "user_data",
-      });
+      // Extract index from source file name (format: index_address.sol)
+      const sourceFileName = path.basename(sourceFilePath);
+      const indexMatch = sourceFileName.match(/^(\d+)_/);
+      const index = indexMatch ? indexMatch[1] : '';
       
-      // Create a response using the uploaded file
+      // Read contract source (don't upload file - .sol is not supported)
+      const contractSource = fs.readFileSync(sourceFilePath, "utf8");
+      
       const response = await this.client.responses.create({
-        model: 'gpt-4.1',
-        response_format: { type: 'json_object' },
+        model: "gpt-4.1",
+        text: {
+          format: { type: "json_object" }
+        },
         input: [
           {
-            role: 'system',
+            role: "system",
             content: [
               {
-                type: 'input_text',
-                text: this.systemPrompt,
-              },
-            ],
+                type: "input_text",
+                text: this.systemPrompt
+              }
+            ]
           },
           {
-            role: 'user',
+            role: "user",
             content: [
               {
-                type: 'input_file',
-                file_id: file.id,
-              },
-              {
-                type: 'input_text',
-                text: this.userPrompt,
-              },
-            ],
-          },
-        ],
-        max_tokens: 4000,
-        temperature: 0.3,
+                type: "input_text",
+                text: `
+${this.userPrompt}
+
+Solidity contract source code:
+${contractSource}
+`
+              }
+            ]
+          }
+        ]
       });
       
       // Parse the response
       const auditResultText = response.output_text;
       const auditResult = JSON.parse(auditResultText);
-      
-      // Clean up: Delete the uploaded file from OpenAI
-      try {
-        await this.client.files.del(file.id);
-      } catch (deleteError) {
-        // Silently ignore if file deletion fails
-      }
       console.log(`   ✅ Audit completed`);
       
       // Check if vulnerabilities were found
@@ -288,17 +283,14 @@ Classify the result using this JSON format:
         : [];
       
       // Only save audit result files if critical vulnerabilities exist (disk space optimization)
-      let resultFilePathJson = null;
       let resultFilePathTxt = null;
       
       if (hasVulnerabilities) {
-        const resultFileNameJson = `${contractAddress.toLowerCase()}_audit.json`;
-        const resultFileNameTxt = `${contractAddress.toLowerCase()}_audit.txt`;
-        resultFilePathJson = path.join(this.auditResultsDir, resultFileNameJson);
+        // Include index in filename to match source file naming
+        const resultFileNameTxt = index 
+          ? `${index}_${contractAddress.toLowerCase()}_audit.txt`
+          : `${contractAddress.toLowerCase()}_audit.txt`;
         resultFilePathTxt = path.join(this.auditResultsDir, resultFileNameTxt);
-        
-        // Save JSON format
-        fs.writeFileSync(resultFilePathJson, JSON.stringify(auditResult, null, 2), 'utf8');
         
         // Save human-readable format
       const resultContent = `Contract Address: ${contractAddress}

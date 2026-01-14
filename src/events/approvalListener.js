@@ -5,7 +5,7 @@
 
 import { ethers } from 'ethers';
 import { ERC20_ABI, APPROVAL_EVENT_TOPIC } from '../config/erc20.js';
-import { isContract, fetchContractSource } from '../api/etherscan.js';
+import { isContract } from '../api/etherscan.js';
 import { ContractTracker } from '../storage/contractTracker.js';
 
 export class ApprovalListener {
@@ -107,21 +107,10 @@ export class ApprovalListener {
       
       console.log(`🔔 Approval → Spender: ${spender} | Token: ${log.address}`);
       
-      // Fetch contract source code
-      const contractData = await fetchContractSource(spender, this.chainConfig);
-      
-      if (contractData.verified) {
-        const proxyInfo = contractData.proxy === '1' ? ` [Proxy→${contractData.implementation?.slice(0, 10)}...]` : '';
-        console.log(`   ✅ Fetched: ${contractData.contractName || 'Unknown'}${proxyInfo} | Queued for audit`);
-        
-        // Save contract source as single flattened file
-        this.tracker.saveContractSource(spender, contractData);
-      } else {
-        console.log(`   ⚠️  Not verified on Etherscan`);
-      }
-      
-      // Mark contract as processed
+      // In combined mode, just record the address - fetching/auditing happens in BackgroundProcessor
+      // Mark contract as processed (queued for processing)
       this.tracker.markAsProcessed(spender);
+      console.log(`   ✅ Queued for processing`);
       
     } catch (error) {
       console.error('Error handling approval event:', error.message);

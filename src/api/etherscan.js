@@ -9,8 +9,10 @@
  * @param {Object} chainConfig - Chain configuration object
  * @returns {Promise<Object>} Contract source code and metadata
  */
-export async function fetchContractSource(contractAddress, chainConfig) {
+export async function fetchContractSource(contractAddress, chainConfig, retryCount = 0) {
   const { explorerApiUrl, explorerApiKey, chainId } = chainConfig;
+  const maxRetries = 3;
+  const retryDelay = 1000; // 1 second delay between retries
   
   const url = `${explorerApiUrl}?apikey=${explorerApiKey}&chainid=${chainId}&module=contract&action=getsourcecode&address=${contractAddress}`;
   
@@ -19,6 +21,12 @@ export async function fetchContractSource(contractAddress, chainConfig) {
     const data = await response.json();
     
     if (data.status !== '1') {
+      // If rate limited or API error, retry after delay
+      if (data.message === 'NOTOK' && retryCount < maxRetries) {
+        const waitTime = retryDelay * (retryCount + 1); // Exponential backoff
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        return fetchContractSource(contractAddress, chainConfig, retryCount + 1);
+      }
       throw new Error(`Etherscan API error: ${data.message}`);
     }
     

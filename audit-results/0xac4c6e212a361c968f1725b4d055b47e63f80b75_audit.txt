@@ -1,0 +1,55 @@
+Contract Address: 0xac4c6e212a361c968f1725b4d055b47e63f80b75
+Source File: 131_0xac4c6e212a361c968f1725b4d055b47e63f80b75.sol
+Audit Date: 2026-01-14T15:39:55.253Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The contract allows a general external attacker to execute arbitrary external calls to any address with arbitrary calldata and arbitrary ETH value via the SafeExecutor contract, leading to theft of ETH and tokens held by the contract.
+
+Attack Surface: ETH, ERC20, ERC721, ERC1155
+
+
+Critical Issues Found:
+
+1. Unrestricted Arbitrary External Call Execution
+   Type: Arbitrary External Call
+   Function: snwap, snwapMultiple (via SafeExecutor.execute/executeMultiple)
+   
+   Attack Scenario:
+   A general external user can call snwap or snwapMultiple and supply any executor address and arbitrary calldata. The SafeExecutor contract will then perform a low-level call to the attacker-supplied executor with any supplied calldata and ETH value. This allows the attacker to instruct the contract to transfer out all ETH or tokens held by the contract to any address, or interact with any external contract, leading to theft of all assets held by the contract.
+   
+   Impact:
+   Theft of all ETH and ERC20/ERC721/ERC1155 tokens held by the contract. Permanent loss of funds.
+   
+   Recommended Fix:
+   Restrict the set of allowed executor addresses to a trusted whitelist, or otherwise strictly validate the calldata and destination. Do not allow arbitrary user-supplied external calls.
+
+
+
+==============================================================================
+
+Raw JSON:
+{
+  "critical_vulnerability_exists": true,
+  "summary": "The contract allows a general external attacker to execute arbitrary external calls to any address with arbitrary calldata and arbitrary ETH value via the SafeExecutor contract, leading to theft of ETH and tokens held by the contract.",
+  "attack_surface": [
+    "ETH",
+    "ERC20",
+    "ERC721",
+    "ERC1155"
+  ],
+  "critical_issues": [
+    {
+      "title": "Unrestricted Arbitrary External Call Execution",
+      "vulnerability_type": "Arbitrary External Call",
+      "affected_function": "snwap, snwapMultiple (via SafeExecutor.execute/executeMultiple)",
+      "attack_scenario": "A general external user can call snwap or snwapMultiple and supply any executor address and arbitrary calldata. The SafeExecutor contract will then perform a low-level call to the attacker-supplied executor with any supplied calldata and ETH value. This allows the attacker to instruct the contract to transfer out all ETH or tokens held by the contract to any address, or interact with any external contract, leading to theft of all assets held by the contract.",
+      "impact": "Theft of all ETH and ERC20/ERC721/ERC1155 tokens held by the contract. Permanent loss of funds.",
+      "recommended_fix": "Restrict the set of allowed executor addresses to a trusted whitelist, or otherwise strictly validate the calldata and destination. Do not allow arbitrary user-supplied external calls."
+    }
+  ]
+}

@@ -15,12 +15,7 @@ export class ContractTracker {
     this.dataDir = dataDir;
     this.processedContracts = new Set();
     this.contractsFilePath = path.join(dataDir, 'processed-contracts.json');
-    this.sourcesDir = path.join(dataDir, 'sources');
-    this.contractIndex = 0;
     this.statistics = statistics || new AuditStatistics(dataDir);
-    
-    // Initialize OpenAI auditor
-    this.auditor = new OpenAIAuditor(process.env.OPENAI_API_KEY, this.statistics);
     
     this.initialize();
   }
@@ -34,21 +29,14 @@ export class ContractTracker {
       fs.mkdirSync(this.dataDir, { recursive: true });
     }
     
-    if (!fs.existsSync(this.sourcesDir)) {
-      fs.mkdirSync(this.sourcesDir, { recursive: true });
-    }
-    
     // Load processed contracts from file
     this.loadProcessedContracts();
-    
-    // Calculate next index based on existing files
-    this.calculateNextIndex();
   }
   
   /**
-   * Calculate the next index for file naming
+   * Calculate the next index for file naming (REMOVED - handled by BackgroundFetcher)
    */
-  calculateNextIndex() {
+  calculateNextIndex_OLD() {
     try {
       const files = fs.readdirSync(this.sourcesDir);
       const solFiles = files.filter(f => f.endsWith('.sol'));

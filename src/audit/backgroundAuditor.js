@@ -16,8 +16,9 @@ export class BackgroundAuditor {
     this.auditor = new OpenAIAuditor(process.env.OPENAI_API_KEY, this.statistics);
     this.isRunning = false;
     this.checkInterval = 10000; // Check every 10 seconds
-    this.auditDelay = 2000; // Delay between audits (rate limiting)
+    this.auditDelay = 10000; // 10 seconds delay between audits (avoid OpenAI rate limits)
     this.currentlyAuditing = null;
+    this.rateLimitWaitTime = 60000; // Wait 60s when rate limited
   }
 
   /**
@@ -144,9 +145,9 @@ export class BackgroundAuditor {
       console.error(`   ❌ Error: ${contractAddress} - ${error.message}`);
       
       // If rate limited, wait longer
-      if (error.message.includes('Rate limited')) {
-        console.log('   ⏸️  Rate limited - waiting 60s...');
-        await this.sleep(60000);
+      if (error.message.includes('Rate limit') || error.message.includes('429')) {
+        console.log(`   ⏸️  Rate limited - waiting ${this.rateLimitWaitTime / 1000}s...`);
+        await this.sleep(this.rateLimitWaitTime);
       }
     } finally {
       this.currentlyAuditing = null;
