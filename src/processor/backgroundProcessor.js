@@ -161,13 +161,87 @@ export class BackgroundProcessor {
         return;
       }
 
-      // Step 2: Process and optimize contract source
+      // Step 1.4: Check if contract is a proxy - Skip proxy contracts
+      // Proxy contracts generate generic results about delegatecall patterns
+      // which are not useful since that's the normal proxy behavior
+      if (contractData.proxy === '1' || (contractData.implementation && contractData.implementation !== '')) {
+        console.log(`   ⏭️  Skipped: Proxy contract (implementation: ${contractData.implementation || 'N/A'})`);
+        this.auditorPool.auditors[0].auditor.recordAuditResult(
+          contractAddress,
+          false,
+          [],
+          false,
+          `Skipped: Proxy contract - auditing delegatecall patterns not useful`
+        );
+        return;
+      }
+
+      // Step 1.5: EARLY LANGUAGE CHECK - Check before any processing
+      // This prevents wasting time and API calls on non-Solidity contracts
+      let rawSourceForCheck = contractData.sourceCode || '';
+      
+      // Handle Etherscan's double-brace wrapper for quick check
+      if (rawSourceForCheck.startsWith('{{') && rawSourceForCheck.endsWith('}}')) {
+        rawSourceForCheck = rawSourceForCheck.slice(1, -1);
+      }
+      
+      // If it's JSON format, extract first file content for quick check
+      if (rawSourceForCheck.startsWith('{')) {
+        try {
+          let parsed = JSON.parse(rawSourceForCheck);
+          let sources = {};
+          
+          if (parsed.language && parsed.sources) {
+            sources = parsed.sources;
+          } else if (parsed.sources) {
+            sources = parsed.sources;
+          } else {
+            sources = parsed;
+          }
+          
+          // Get first file content for language detection
+          const firstFile = Object.values(sources)[0];
+          if (firstFile) {
+            if (typeof firstFile === 'string') {
+              rawSourceForCheck = firstFile;
+            } else if (firstFile && firstFile.content) {
+              rawSourceForCheck = firstFile.content;
+            }
+          }
+        } catch (parseError) {
+          // If JSON parse fails, use original source
+        }
+      }
+      
+      // Early language check - reject non-Solidity contracts immediately
+      const earlyLanguage = detectContractLanguage(rawSourceForCheck);
+      if (earlyLanguage !== 'Solidity') {
+        console.log(`   ⏭️  Skipped: ${earlyLanguage} contract (non-Solidity) - detected early`);
+        // Record as skipped with reason (prevents retry)
+        this.auditorPool.auditors[0].auditor.recordAuditResult(
+          contractAddress, 
+          false, 
+          [], 
+          false, 
+          `Skipped: ${earlyLanguage} language (not Solidity)`
+        );
+        return; // Exit immediately, don't process further
+      }
+
+      // Step 2: Process and optimize contract source (only for Solidity contracts)
       console.log(`   ⚙️  Processing contract source...`);
       const sourceContent = this.processContractSource(contractAddress, contractData);
       
       if (!sourceContent) {
-        console.log(`   ⏭️  Skipped: Non-Solidity or invalid contract`);
-        this.auditorPool.auditors[0].auditor.recordAuditResult(contractAddress, false, [], false, null);
+        // This should rarely happen now (we already checked), but keep as safety
+        console.log(`   ⏭️  Skipped: Invalid or non-Solidity contract`);
+        this.auditorPool.auditors[0].auditor.recordAuditResult(
+          contractAddress, 
+          false, 
+          [], 
+          false, 
+          `Skipped: Invalid contract format`
+        );
         return;
       }
 
@@ -219,6 +293,52 @@ export class BackgroundProcessor {
    */
   processContractSource(address, contractData) {
     try {
+      let sourceCode = contractData.sourceCode;
+      
+      // EARLY LANGUAGE CHECK - Check raw source code before any processing
+      // This prevents wasting time on non-Solidity contracts
+      
+      // Handle Etherscan's double-brace wrapper for initial check
+      let rawSourceForCheck = sourceCode;
+      if (rawSourceForCheck.startsWith('{{') && rawSourceForCheck.endsWith('}}')) {
+        rawSourceForCheck = rawSourceForCheck.slice(1, -1);
+      }
+      
+      // If it's JSON format, extract first file content for quick check
+      if (rawSourceForCheck.startsWith('{')) {
+        try {
+          let parsed = JSON.parse(rawSourceForCheck);
+          let sources = {};
+          
+          if (parsed.language && parsed.sources) {
+            sources = parsed.sources;
+          } else if (parsed.sources) {
+            sources = parsed.sources;
+          } else {
+            sources = parsed;
+          }
+          
+          // Get first file content for language detection
+          const firstFile = Object.values(sources)[0];
+          if (firstFile) {
+            if (typeof firstFile === 'string') {
+              rawSourceForCheck = firstFile;
+            } else if (firstFile && firstFile.content) {
+              rawSourceForCheck = firstFile.content;
+            }
+          }
+        } catch (parseError) {
+          // If JSON parse fails, use original source
+        }
+      }
+      
+      // Early language check - reject non-Solidity contracts immediately
+      const language = detectContractLanguage(rawSourceForCheck);
+      if (language !== 'Solidity') {
+        return null; // Return null immediately, don't process further
+      }
+      
+      // Now proceed with full processing (only for Solidity contracts)
       let flattenedSource = '';
       
       // Add header
@@ -230,8 +350,6 @@ export class BackgroundProcessor {
       }
       flattenedSource += `// Processed: ${new Date().toISOString()}\n`;
       flattenedSource += `// ================================================================\n\n`;
-      
-      let sourceCode = contractData.sourceCode;
       
       // Handle Etherscan's double-brace wrapper
       if (sourceCode.startsWith('{{') && sourceCode.endsWith('}}')) {
@@ -274,9 +392,9 @@ export class BackgroundProcessor {
         flattenedSource += sourceCode;
       }
 
-      // Validate contract language
-      const language = detectContractLanguage(flattenedSource);
-      if (language !== 'Solidity') {
+      // Final validation (double-check after flattening)
+      const finalLanguage = detectContractLanguage(flattenedSource);
+      if (finalLanguage !== 'Solidity') {
         return null;
       }
       

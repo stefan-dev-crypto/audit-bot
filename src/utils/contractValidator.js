@@ -34,22 +34,38 @@ export function isSolidityContract(sourceCode) {
  * @returns {string} Language name (Solidity, Vyper, Yul, Unknown)
  */
 export function detectContractLanguage(sourceCode) {
-  if (sourceCode.includes('# @version') || sourceCode.includes('#@version')) {
+  if (!sourceCode || sourceCode.trim().length === 0) {
+    return 'Empty';
+  }
+  
+  // Check for Vyper version marker
+  if (sourceCode.includes('# @version') || sourceCode.includes('#@version') || sourceCode.includes('@version')) {
     return 'Vyper';
   }
   
+  // Check for Python-style comments (common in Vyper)
+  const lines = sourceCode.split('\n').slice(0, 50); // Check first 50 lines
+  const pythonStyleComments = lines.filter(line => line.trim().startsWith('#')).length;
+  if (pythonStyleComments > 5) {
+    return 'Vyper';
+  }
+  
+  // Check for Yul syntax
   if (sourceCode.includes('object "') && sourceCode.includes('code {')) {
     return 'Yul';
   }
   
+  // Check for Solidity pragma
   if (/pragma\s+solidity/i.test(sourceCode)) {
     return 'Solidity';
   }
   
-  if (/\b(contract|interface|library)\s+\w+/i.test(sourceCode)) {
+  // Check for contract/interface/library declaration (Solidity)
+  if (/\b(contract|interface|library|abstract\s+contract)\s+\w+/i.test(sourceCode)) {
     return 'Solidity';
   }
   
+  // If no clear indicators, it's unknown
   return 'Unknown';
 }
 

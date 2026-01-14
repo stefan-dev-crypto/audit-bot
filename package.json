@@ -10,7 +10,9 @@
     "dev": "node --watch src/index.js",
     "test-telegram": "node scripts/testTelegram.js",
     "test-parallel": "node scripts/testParallelAudit.js",
-    "test-persistence": "node scripts/testAuditPersistence.js"
+    "test-persistence": "node scripts/testAuditPersistence.js",
+    "test-language": "node scripts/testLanguageDetection.js",
+    "clean-proxy": "node scripts/cleanProxyAudits.js"
   },
   "keywords": [
     "ethereum",

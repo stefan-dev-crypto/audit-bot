@@ -262,8 +262,9 @@ Classify the result using this JSON format:
    * @param {Array<string>} vulnerabilityNames - List of vulnerability types found
    * @param {boolean} failed - Whether the audit failed
    * @param {string} errorMessage - Error message if audit failed
+   * @param {string} skipReason - Reason for skipping (e.g., non-Solidity language)
    */
-  recordAuditResult(address, hasVulnerabilities, vulnerabilityNames = [], failed = false, errorMessage = null) {
+  recordAuditResult(address, hasVulnerabilities, vulnerabilityNames = [], failed = false, errorMessage = null, skipReason = null) {
     try {
       const normalizedAddress = address.toLowerCase();
       
