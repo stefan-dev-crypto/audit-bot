@@ -168,8 +168,10 @@ Classify the result using this JSON format:
    * @param {string} address - Contract address
    * @param {boolean} hasVulnerabilities - Whether vulnerabilities were found
    * @param {Array<string>} vulnerabilityNames - List of vulnerability types found
+   * @param {boolean} failed - Whether the audit failed
+   * @param {string} errorMessage - Error message if audit failed
    */
-  recordAuditResult(address, hasVulnerabilities, vulnerabilityNames = []) {
+  recordAuditResult(address, hasVulnerabilities, vulnerabilityNames = [], failed = false, errorMessage = null) {
     try {
       const normalizedAddress = address.toLowerCase();
       
@@ -195,9 +197,11 @@ Classify the result using this JSON format:
       
       // Update with new audit result
       auditedData[normalizedAddress] = {
-        hasVulnerabilities,
-        vulnerabilities: vulnerabilityNames,
-        auditedAt: new Date().toISOString()
+        hasVulnerabilities: failed ? null : hasVulnerabilities,
+        vulnerabilities: failed ? [] : vulnerabilityNames,
+        auditedAt: new Date().toISOString(),
+        failed: failed,
+        errorMessage: failed ? errorMessage : null
       };
       
       // Add to Set
@@ -227,29 +231,54 @@ Classify the result using this JSON format:
         return { skipped: true, address: contractAddress };
       }
       
-      // Read contract content for chat completion
-      const contractContent = fs.readFileSync(sourceFilePath, 'utf8');
+      // Upload contract file to OpenAI
+      const file = await this.client.files.create({
+        file: fs.createReadStream(sourceFilePath),
+        purpose: "user_data",
+      });
       
-      // Create a completion using chat API with file content
-      const response = await this.client.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
+      // Create a response using the uploaded file
+      const response = await this.client.responses.create({
+        model: 'gpt-4.1',
         response_format: { type: 'json_object' },
-        messages: [
+        input: [
           {
             role: 'system',
-            content: this.systemPrompt,
+            content: [
+              {
+                type: 'input_text',
+                text: this.systemPrompt,
+              },
+            ],
           },
           {
             role: 'user',
-            content: this.userPrompt + '\n\nContract Source Code:\n\n```solidity\n' + contractContent + '\n```',
+            content: [
+              {
+                type: 'input_file',
+                file_id: file.id,
+              },
+              {
+                type: 'input_text',
+                text: this.userPrompt,
+              },
+            ],
           },
         ],
         max_tokens: 4000,
         temperature: 0.3,
       });
       
-      const auditResultText = response.choices[0].message.content;
+      // Parse the response
+      const auditResultText = response.output_text;
       const auditResult = JSON.parse(auditResultText);
+      
+      // Clean up: Delete the uploaded file from OpenAI
+      try {
+        await this.client.files.del(file.id);
+      } catch (deleteError) {
+        // Silently ignore if file deletion fails
+      }
       console.log(`   ✅ Audit completed`);
       
       // Check if vulnerabilities were found
@@ -311,7 +340,7 @@ ${JSON.stringify(auditResult, null, 2)}
 `;
       
         fs.writeFileSync(resultFilePathTxt, resultContent, 'utf8');
-        console.log(`   💾 Audit result saved: ${path.basename(resultFileNameTxt)} and ${path.basename(resultFileNameJson)}`);
+        console.log(`   💾 Audit result saved: ${path.basename(resultFileNameTxt)}`);
       }
       
       if (hasVulnerabilities) {
@@ -346,23 +375,35 @@ ${JSON.stringify(auditResult, null, 2)}
         hasVulnerabilities,
         vulnerabilityNames,
         result: auditResult,
-        resultFileJson: resultFilePathJson,
         resultFileTxt: resultFilePathTxt,
         criticalIssuesCount: auditResult.critical_issues?.length || 0,
         attackSurface: auditResult.attack_surface || [],
       };
       
     } catch (error) {
-      console.error(`   ❌ Error auditing contract ${contractAddress}:`, error.message);
+      console.error(`   ❌ Audit error: ${error.message?.slice(0, 150) || error}`);
       
-      // If rate limited, throw to allow retry
-      if (error.status === 429) {
-        throw new Error('Rate limited by OpenAI API. Please wait and try again.');
+      // Record failed audit
+      this.recordAuditResult(contractAddress, false, [], true, error.message);
+      
+      // Update statistics (if statistics tracker is available)
+      if (this.statistics) {
+        this.statistics.recordAuditFailure();
+      }
+      
+      // Check if it's a rate limit error
+      if (error.message && (error.message.includes('Rate limit') || error.message.includes('429') || error.message.includes('too large'))) {
+        if (error.message.includes('tokens per min')) {
+          console.log(`   ⏸️  Rate limit - waiting 60s...`);
+        }
       }
       
       return {
         address: contractAddress,
         error: error.message,
+        hasVulnerabilities: false,
+        result: null,
+        failed: true
       };
     }
   }

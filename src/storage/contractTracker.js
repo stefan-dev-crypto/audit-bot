@@ -7,6 +7,8 @@ import fs from 'fs';
 import path from 'path';
 import { OpenAIAuditor } from '../audit/openaiAuditor.js';
 import { AuditStatistics } from './auditStatistics.js';
+import { optimizeForAudit } from '../utils/contractOptimizer.js';
+import { shouldAuditContract } from '../utils/contractValidator.js';
 
 export class ContractTracker {
   constructor(dataDir = './data', statistics = null) {
@@ -252,10 +254,25 @@ export class ContractTracker {
         flattenedSource += sourceCode;
       }
       
-      // Write the flattened file
-      fs.writeFileSync(filePath, flattenedSource, 'utf8');
+      // Check if contract should be audited (Solidity only, skip Vyper/Yul)
+      const validation = shouldAuditContract(flattenedSource);
       
-      // File saved silently (address already logged)
+      if (!validation.shouldAudit) {
+        console.log(`   ⏭️  Skipped: ${validation.language} contract (${validation.reason})`);
+        this.contractIndex++;
+        return null; // Don't save non-Solidity contracts
+      }
+      
+      // Optimize the source code to reduce size before saving (20k tokens = safe buffer under 30k limit)
+      const optimization = optimizeForAudit(flattenedSource, 20000);
+      
+      // Write the optimized file
+      fs.writeFileSync(filePath, optimization.optimized, 'utf8');
+      
+      // Log optimization results for large contracts
+      if (optimization.originalTokens > 25000) {
+        console.log(`   📄 Optimized: ${fileName} | ${optimization.originalTokens} → ${optimization.optimizedTokens} tokens (-${optimization.reductionPercent}%)`);
+      }
       
       // Increment index for next contract
       this.contractIndex++;
