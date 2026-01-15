@@ -1,6 +1,7 @@
 /**
  * ERC20 Event listener module
- * Listens for and processes Approval and Transfer events on the blockchain
+ * Listens for and processes Approval events on the blockchain
+ * NOTE: Transfer event detection is BLOCKED
  */
 
 import { ethers } from 'ethers';
@@ -24,7 +25,7 @@ export class ApprovalListener {
   }
   
   /**
-   * Start listening for Approval and Transfer events
+   * Start listening for Approval events (Transfer events BLOCKED)
    */
   async start() {
     console.log(`Starting ERC20 event listener on ${this.chainConfig.name}...`);
@@ -35,7 +36,7 @@ export class ApprovalListener {
     this.lastProcessedBlock = await this.provider.getBlockNumber();
     
     console.log(`Starting from block: ${this.lastProcessedBlock}`);
-    console.log('Listening for ERC20 Approval and Transfer events...');
+    console.log('Listening for ERC20 Approval events (Transfer events BLOCKED)...');
     console.log('Press Ctrl+C to stop\n');
     
     // Start batch value checking interval (every 5 seconds)
@@ -50,7 +51,7 @@ export class ApprovalListener {
   }
   
   /**
-   * Process a new block and check for Approval and Transfer events
+   * Process a new block and check for Approval events (Transfer events BLOCKED)
    * @param {number} blockNumber - The block number to process
    */
   async processBlock(blockNumber) {
@@ -67,22 +68,22 @@ export class ApprovalListener {
         topics: [APPROVAL_EVENT_TOPIC]
       });
       
-      // Query logs for Transfer events in this block
-      const transferLogs = await this.provider.getLogs({
-        fromBlock: blockNumber,
-        toBlock: blockNumber,
-        topics: [TRANSFER_EVENT_TOPIC]
-      });
+      // BLOCKED: Query logs for Transfer events in this block
+      // const transferLogs = await this.provider.getLogs({
+      //   fromBlock: blockNumber,
+      //   toBlock: blockNumber,
+      //   topics: [TRANSFER_EVENT_TOPIC]
+      // });
       
       // Process each approval event found
       for (const log of approvalLogs) {
         await this.handleApprovalEvent(log);
       }
       
-      // Process each transfer event found
-      for (const log of transferLogs) {
-        await this.handleTransferEvent(log);
-      }
+      // BLOCKED: Process each transfer event found
+      // for (const log of transferLogs) {
+      //   await this.handleTransferEvent(log);
+      // }
       
       this.lastProcessedBlock = blockNumber;
     } catch (error) {

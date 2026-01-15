@@ -163,7 +163,7 @@ export class BackgroundAuditor {
         console.log(`   ❌ Audit failed: ${result.error}`);
       } else {
         if (result.hasVulnerabilities) {
-          console.log(`   🚨 VULN: ${contractAddress} | ${result.criticalIssuesCount} issue(s): ${result.vulnerabilityNames.join(', ')} | Surface: ${result.attackSurface.join(', ')}`);
+          console.log(`   🚨 VULN: ${contractAddress} | ${result.criticalIssuesCount} issue(s): ${result.vulnerabilityNames.join(', ')}`);
         } else {
           console.log(`   ✅ Clean: ${contractAddress}`);
         }

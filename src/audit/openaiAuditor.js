@@ -22,154 +22,47 @@ export class OpenAIAuditor {
     this.telegramConfig = telegramConfig;
     
     this.systemPrompt = `You are a senior Solidity smart contract security auditor.
-
-Your task is to determine whether a GENERAL EXTERNAL USER
-(with NO owner, admin, governance, or privileged role)
-can cause FUND LOSS in the contract.
-
-==================== CRITICAL FUND LOSS DEFINITION ====================
-A vulnerability is CRITICAL ONLY IF it allows at least one of the following:
-- Theft of ETH
-- Theft of ERC20 / ERC721 / ERC1155 tokens
-- Unlimited minting or draining of assets
-- Permanent fund lock
-- Insolvency caused by manipulation
-
-==================== ATTACKER MODEL ====================
-- Attacker is a normal external user
-- Attacker has no special permissions
-- Attacker can deploy malicious contracts
-- Attacker can use flash loans, MEV, and composability
-
-==================== VULNERABILITY CLASSIFICATION ====================
-You MUST classify vulnerabilities using ONLY ONE OR MORE
-of the following names:
-
-Access Control
-Lack of Access Control
-Missing Access Control
-Unprotected Function
-Unauthorized Mint
-Unauthorized Burn
-Unauthorized Transfer
-Privilege Escalation
-
-Reentrancy
-Cross-Function Reentrancy
-Read-Only Reentrancy
-External Call Before State Update
-
-Logic Flaw
-Business Logic Flaw
-Broken Invariant
-Incorrect Accounting
-Incorrect Share Calculation
-Incorrect Reward Calculation
-Incorrect Burn Logic
-Incorrect Mint Logic
-Double Withdraw
-Over-Withdrawal
-
-Price Manipulation
-Oracle Manipulation
-FlashLoan Price Oracle Manipulation
-TWAP Manipulation
-Share Price Manipulation
-
-Unsafe Math
-Overflow
-Underflow
-Precision Loss
-Rounding Error
-Division by Zero
-
-Invalid Signature Verification
-Signature Replay
-Missing Nonce
-Incorrect EIP-712 Implementation
-
-Arbitrary Call
-Arbitrary Delegatecall
-User-Controlled Call Target
-User-Controlled Call Data
-
-Bypassed Insolvency Check
-Missing Solvency Check
-
-Misconfiguration
-Wrong Address Configuration
-Zero Address Assignment
-
-Rug Pull
-Hidden Backdoor
-Honeypot
-
-DO NOT invent new vulnerability names.
-DO NOT use synonyms.
-
-==================== EXPLOITABILITY FILTER ====================
-ONLY report an issue if:
-- A concrete exploit path exists
-- Exploit is feasible on-chain
-- Funds are stolen or permanently locked
-
-DO NOT report:
-- Hypothetical issues
-- Best practices
-- Admin misuse
-- Centralization risks
-- Low or medium severity issues
-
-==================== EXTRACTION RULES ====================
-- ALWAYS extract the Solidity contract name
-- ALWAYS extract the exact function name(s)
-- ALWAYS extract line numbers from the provided source
-- Line numbers MUST refer to the exact lines in the input code
-- If vulnerability spans multiple lines, return a range: "start-end"
-- If vulnerability spans multiple locations, return an array of ranges
-- If vulnerability is in constructor, use "constructor"
-- If in fallback or receive, use "fallback" or "receive"
-- If exact line cannot be determined, use "unknown" (avoid if possible)
+    You are given a Solidity contract source code and you need to audit it for critical vulnerabilities and critical bussiness logic flaws.
+    You need to return a JSON object with the following fields:
+    - critical_vulnerability_exists: boolean
+    - critical_bussiness_logic_flaws_exists: boolean
+    - summary: string
+    - critical_issues: array of objects
+    - critical_bussiness_logic_flaws: array of objects
+    - critical_issues_count: number
+    - critical_bussiness_logic_flaws_count: number
 
 ==================== OUTPUT RULE ====================
 Return STRICT JSON ONLY.
 No explanations outside JSON.`;
 
-    this.userPrompt = `Analyze the Solidity contract source code below.
-
-Determine whether a GENERAL EXTERNAL ATTACKER
-can steal or permanently lock ETH or tokens held by the contract.
+    this.userPrompt = `Audit the Solidity contract source code below.
 
 ==================== REQUIRED JSON FORMAT ====================
 {
   "critical_vulnerability_exists": boolean,
+  "bussiness_logic_flaws_exists": boolean,
   "summary": string,
-  "attack_surface": ["ETH", "ERC20", "ERC721", "ERC1155"],
-  "critical_issues": [
-    {
-      "contract_name": string,
-      "function_name": string | string[],
-      "line_number": string | string[],
-      "title": string,
-      "vulnerability_type": string,
-      "attack_scenario": string,
-      "impact": string,
-      "recommended_fix": string
-    }
-  ]
+  "critical_issues": array of objects with the following fields:
+    - title: string
+    - vulnerability_type: string
+    - attack_scenario: string
+    - impact: string
+    - affected_contract: string
+    - affected_function: string | string[]
+    - affected_line_number: string | string[]
+  "critical_bussiness_logic_flaws": array of objects with the following fields:
+    - title: string
+    - bussiness_logic_flaw_type: string
+    - impact: string
+    - affected_contract: string
+    - affected_function: string | string[]
+    - affected_line_number: string
+  "critical_issues_count": number,
+  "critical_bussiness_logic_flaws_count": number
 }
 
-==================== IMPORTANT RULES ====================
-- contract_name MUST match the Solidity contract definition
-- function_name MUST match the Solidity function signature name
-- line_number MUST reference the exact line(s) in the source
-- Do NOT guess names or line numbers
-- If NO critical fund-loss vulnerability exists:
-  - Set "critical_vulnerability_exists" to false
-  - Use empty "critical_issues" array
-  - Explain clearly in "summary"
-
-==================== CONTRACT SOURCE CODE (WITH LINE NUMBERS) ====================
+==================== CONTRACT SOURCE CODE ====================
 <PASTE SOLIDITY CODE HERE>`;
     
     this.initialize();
@@ -513,8 +406,6 @@ Critical Vulnerability: ${auditResult.critical_vulnerability_exists ? '🚨 YES'
 Summary:
 ${auditResult.summary}
 
-Attack Surface: ${auditResult.attack_surface.join(', ') || 'None'}
-
 ${auditResult.critical_issues && auditResult.critical_issues.length > 0 ? `
 Critical Issues Found:
 ${auditResult.critical_issues.map((issue, idx) => `
@@ -548,7 +439,6 @@ ${JSON.stringify(auditResult, null, 2)}
       
       if (hasVulnerabilities) {
         console.log(`   🚨 CRITICAL VULNERABILITIES FOUND!`);
-        console.log(`   📊 Attack Surface: ${auditResult.attack_surface.join(', ')}`);
         console.log(`   🔴 Issues: ${auditResult.critical_issues.length}`);
         
         // Send Telegram notification if configured
@@ -590,7 +480,6 @@ ${JSON.stringify(auditResult, null, 2)}
         result: auditResult,
         resultFileTxt: resultFilePathTxt,
         criticalIssuesCount: auditResult.critical_issues?.length || 0,
-        attackSurface: auditResult.attack_surface || [],
       };
       
     } catch (error) {
