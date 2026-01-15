@@ -1,0 +1,101 @@
+Contract Address: 0x3eec7c855af33280f1ed38b93059f5aa5862e3ab
+Source File: 22_0x3eec7c855af33280f1ed38b93059f5aa5862e3ab.sol
+Audit Date: 2026-01-15T13:21:33.865Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The provided contracts are designed for token bridging, minting, locking, and limiting with interactions among chains. Critical issues include missing access control on sensitive or dangerous functions in some implementations, improper/non-updated handling of state before/after transfers or unlocks, missing validation on bridge message replay/protection, upgradability or initialization risks, and rescue functionality loopholes. There are also logic flaws that can allow depletion or locking of funds, inaccurate accounting, or incorrect mint/lock control. Some logic can lead to griefing or unbounded pending tokens if not handled correctly.
+
+
+Critical Issues Found:
+
+1. Reentrancy risk in `rescueFunds` & bridge operations
+   Type: Reentrancy
+   Function: rescueFunds,unlockPendingFor,mintPendingFor,depositToAppChain,bridge
+   
+   Attack Scenario:
+   If the token being rescued or transferred implements a fallback that can call back into the contract, it can exploit the lack of reentrancy protection and drain or manipulate contract state.
+   
+   Impact:
+   Potential loss of all funds or inconsistent accounting, especially in locking/minting contracts holding large collateral.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Lack of replay protection for `inbound` or `receiveInbound` messages
+   Type: Message Replay / Double Mint
+   Function: receiveInbound,inbound
+   
+   Attack Scenario:
+   An attacker could re-submit the same bridge message (payload) and repeatedly mint/unlock tokens if not tracked.
+   
+   Impact:
+   Inflation of token supply and theft due to double execution of cross-chain messages.
+   
+   Recommended Fix:
+   undefined
+
+
+3. Improper accounting of pending tokens enables DoS or overflow
+   Type: Business Logic/Accounting
+   Function: unlockPendingFor,mintPendingFor
+   
+   Attack Scenario:
+   No check for underflows when subtracting consumed amounts from pending unlock/mint values. Attackers can overflow/underflow state or cause deadlock by causing extreme pending or consumed values.
+   
+   Impact:
+   Loss of funds, DoS (user can never unlock/claim), or contract inoperability.
+   
+   Recommended Fix:
+   undefined
+
+
+4. Absence of access control on sensitive configuration (updateLimitParams, updateConnectorPoolId, updateExchangeRate etc)
+   Type: Access Control
+   Function: updateLimitParams,updateConnectorPoolId,updateExchangeRate
+   
+   Attack Scenario:
+   If ownership is accidentally renounced, transferred, or initially set to the wrong party, critical rate/limit/configuration could be manipulated, resulting in DoS or full draining of tokens.
+   
+   Impact:
+   Denial of service, backdoor infinite minting, or bridge breaking.
+   
+   Recommended Fix:
+   undefined
+
+
+5. Missing input validation and underflow/overflow protections
+   Type: Arithmetic bug
+   Function: withdrawFromAppChain,_burn,mintPendingFor,unlockPendingFor
+   
+   Attack Scenario:
+   Lack of SafeMath or explicit checks on arithmetic (e.g., totalMinted -= burnAmount_) can cause supply underflows if improper sequences are used.
+   
+   Impact:
+   Token supply corruption, potential for infinite minting or burning.
+   
+   Recommended Fix:
+   undefined
+
+
+6. RescueFundsLib allows erasure of any token balance
+   Type: Unprotected rescue/withdrawal
+   Function: rescueFunds
+   
+   Attack Scenario:
+   If contract owner is compromised or constructor's initial ownership is wrong, immediate draining of all tokens from rescueFunds is possible.
+   
+   Impact:
+   Loss of all collateral/tokens from bridges.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

@@ -1,0 +1,87 @@
+Contract Address: 0x1f748c76de468e9d11bd340fa9d5cbadf315dfb0
+Source File: 36_0x1f748c76de468e9d11bd340fa9d5cbadf315dfb0.sol
+Audit Date: 2026-01-15T13:33:57.110Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The UsdtOFT contract and its dependencies contain multiple serious security issues and potential business logic flaws. There are missing reentrancy guards on token transfer and withdrawal functions, incorrect access control over withdrawal of user funds, indirect reliance on untrusted external contract code (endpoint), and possible mishandling of initialization and permissions regarding critical roles. Furthermore, unsafe ERC20 'transfer' is used for the TRON_EID branch. Also, there are evident incomplete code fragments and likely code merge/formatting problems, raising reliability and maintainability concerns.
+
+
+Critical Issues Found:
+
+1. Missing Reentrancy Protection on Withdrawals
+   Type: Reentrancy
+   Function: withdrawFees,withdrawLocal
+   
+   Attack Scenario:
+   An attacker with 'lpAdmin' or 'owner' privileges could exploit the lack of reentrancy protection on withdrawFees and withdrawLocal to reenter the contract and drain funds in specific scenarios, especially if innerToken is a non-standard ERC20 with a malicious callback.
+   
+   Impact:
+   Funds can be drained beyond allowed limits or contract state can be corrupted.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Unsafe fallback to ERC20 transfer() for TRON_EID
+   Type: Unsafe ERC20 Usage
+   Function: withdrawFees,withdrawLocal,_receiveOFT
+   
+   Attack Scenario:
+   If innerToken does not return a boolean or behaves unexpectedly during transfer (as historical TRON-style tokens or malicious tokens sometimes do), funds could be lost or the contract could think funds are transferred when they are not.
+   
+   Impact:
+   Potential loss of user funds or accounting errors.
+   
+   Recommended Fix:
+   undefined
+
+
+3. Incorrect access control allows privileged withdrawal of pooled funds
+   Type: Access Control / Privilege Escalation
+   Function: withdrawFees,withdrawLocal
+   
+   Attack Scenario:
+   The lpAdmin or contract owner can withdraw arbitrarily large amounts from the protocol pool without limitation, violating user expectations and enabling insider theft.
+   
+   Impact:
+   Loss of all pooled funds by a privileged party.
+   
+   Recommended Fix:
+   undefined
+
+
+4. Dependence on External endpoint Implementation
+   Type: Untrusted External Call/Upgrade Risk
+   Function: multiple endpoint-related functions
+   
+   Attack Scenario:
+   The contract gives control of critical cross-chain messaging to an endpoint whose upgradeability, logic, or security is not verifiable from this source. If the endpoint is compromised or its delegate changed, all cross-chain operations may be subverted.
+   
+   Impact:
+   All cross-chain sends, receivals, and administrative operations (including token burns, credits, etc.) could be hijacked.
+   
+   Recommended Fix:
+   undefined
+
+
+5. Unvalidated initialization of critical roles in constructor
+   Type: Initialization/Ownership Risk
+   Function: constructor
+   
+   Attack Scenario:
+   If the _delegate address in the constructor is inadvertently set wrong at deployment (e.g. zero address or attacker controlled), all privileged functions (withdrawals, etc.) become trivial to take over or permanently locked.
+   
+   Impact:
+   Privileged control could be lost or seized, bricking or draining the contract.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

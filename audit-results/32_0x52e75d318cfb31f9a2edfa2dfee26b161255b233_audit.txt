@@ -1,0 +1,73 @@
+Contract Address: 0x52e75d318cfb31f9a2edfa2dfee26b161255b233
+Source File: 28_0x52e75d318cfb31f9a2edfa2dfee26b161255b233.sol
+Audit Date: 2026-01-15T13:26:47.639Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The provided OriginalTokenBridge contract has several critical vulnerabilities and business logic flaws. Most notably it is missing underflow checking in totalValueLockedSD on unlock, is susceptible to trust issues with external inputs, and is at risk when handling unwrapping of WETH and sending ETH. It is also possible for the owner to irreversibly renounce ownership in a way that can lock or break bridge functionality.
+
+
+Critical Issues Found:
+
+1. Unchecked Underflow on totalValueLockedSD
+   Type: Integer Underflow
+   Function: _nonblockingLzReceive
+   
+   Attack Scenario:
+   An attacker or a malicious message from LayerZero could result in totalValueLockedSD underflowing below zero if withdrawal messages are processed without sufficient value locked. This causes totalValueLockedSD to wrap around to a very large number, potentially breaking accounting across the bridge and enabling double-spends or draining of funds.
+   
+   Impact:
+   Critical loss of accounting integrity and unsafe state, possible double withdrawals or asset loss.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Potential Loss of Ether in WETH Unwrap and Send
+   Type: Improper ETH Handling / Missing Reentrancy Protection
+   Function: _nonblockingLzReceive
+   
+   Attack Scenario:
+   If the recipient is a contract with a fallback or receive function that reverts or consumes excess gas, the ETH sent after unwrapping WETH can be lost as the withdraw and send might not be properly protected from unexpected reverts and does not handle failures robustly for cross-chain bridge completion.
+   
+   Impact:
+   Permanent loss of ETH intended for the receiver and broken bridging experience.
+   
+   Recommended Fix:
+   undefined
+
+
+3. Trusted Remote & Remote Chain Id May Be Inconsistent
+   Type: Improper Trust Boundary
+   Function: setRemoteChainId,_nonblockingLzReceive
+   
+   Attack Scenario:
+   The contract uses a modifiable remoteChainId for validating inbound messages, which can be arbitrarily changed by the owner. If remoteChainId is modified maliciously or mistakenly, messages from legitimate sources could be ignored or malicious sources could be trusted.
+   
+   Impact:
+   Allows the owner to irreversibly break or hijack the bridge by accepting or blocking arbitrary remote sources.
+   
+   Recommended Fix:
+   undefined
+
+
+4. Irreversible Renounce Ownership Breaks Controls
+   Type: Misuse of renounceOwnership
+   Function: renounceOwnership
+   
+   Attack Scenario:
+   Calling renounceOwnership sets the owner to 0x0 and disables all owner-only functions, including those required to register new tokens, set chain ids, or withdraw fees. If used, the contract cannot recover any admin privileges, effectively bricking core contract features.
+   
+   Impact:
+   Permanent loss of control over core bridging functionality, lost fees, and inability to adapt to future needs.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

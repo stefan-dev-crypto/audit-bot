@@ -6,7 +6,7 @@ A modular JavaScript bot that monitors ERC20 token approval events on Ethereum a
 
 - 🔍 **Real-time monitoring** of ERC20 Approval and Transfer events
 - 🤖 **Contract-only filtering** - ignores regular wallets
-- 💰 **Value-based filtering** - only audits contracts holding ≥$1000 in tokens
+- 💰 **Value-based filtering** - only audits contracts holding ≥$10000 in tokens
 - 📝 **Automatic source fetching** from Etherscan
 - 🔒 **AI-powered auditing** - OpenAI GPT-4 security analysis
 - 💾 **Smart caching** - avoids duplicate fetches and audits
@@ -121,7 +121,7 @@ CHAIN=ethereum
    - Fetches token prices from DexScreener (up to 30 tokens per batch)
    - Queries blockchain for token balance and decimals
    - Calculates contract value: `token_price × (token_balance / 10^decimals)`
-   - **Only records contracts with ≥$1,000 in tokens** to `processed-contracts.json`
+   - **Only records contracts with ≥$10,000 in tokens** to `processed-contracts.json`
 4. Fetches verified source from Etherscan
 5. Flattens multi-file contracts into one `.sol` file
 6. Audits with GPT-4 for security vulnerabilities
@@ -132,7 +132,7 @@ CHAIN=ethereum
 
 The bot includes intelligent value-based filtering that happens **before recording**:
 
-- **Minimum threshold**: $1,000 USD in token holdings
+- **Minimum threshold**: $10,000 USD in token holdings
 - **Batch processing**: Checks up to 30 contracts every 5 seconds
 - **Price source**: DexScreener API (real-time DEX prices)
 - **Token balance**: Direct blockchain queries via ethers.js

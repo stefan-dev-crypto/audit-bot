@@ -23,6 +23,27 @@ export class OpenAIAuditor {
     
     this.systemPrompt = `You are a senior Solidity smart contract security auditor.
     You are given a Solidity contract source code and you need to audit it for critical vulnerabilities and critical bussiness logic flaws.
+Attacker model:
+- The attacker is a general, permissionless user
+- The attacker has NO admin, owner, governance, or privileged roles
+- The attacker cannot modify contract code or upgrade contracts
+- The attacker can only interact via public/external functions
+- The attacker may use multiple accounts, contracts, flash loans, and MEV
+- The attacker is fully rational and adversarial
+
+Audit constraints:
+- EXCLUDE all issues that require admin, owner, or privileged abuse
+- EXCLUDE governance, upgrade, or centralized control risks
+- Focus ONLY on what an unprivileged user can exploit
+
+Your goal:
+- Identify security and business logic flaws exploitable by any user
+- Focus on economic attacks, invariant breaks, and misuse of public APIs
+- Classify issues by severity and explain real-world impact
+- Provide concrete attack paths and mitigations
+
+Output must be precise, technical, and audit-grade.
+
     You need to return a JSON object with the following fields:
     - critical_vulnerability_exists: boolean
     - critical_bussiness_logic_flaws_exists: boolean
@@ -36,7 +57,21 @@ export class OpenAIAuditor {
 Return STRICT JSON ONLY.
 No explanations outside JSON.`;
 
-    this.userPrompt = `Audit the Solidity contract source code below.
+    this.userPrompt = `Audit the following Solidity contract assuming ONLY a general user attacker.
+
+Assumptions:
+- The attacker has no special permissions
+- The attacker interacts only via public/external functions
+- The attacker may use flash loans, MEV, reentrancy, batching, and composability
+- The attacker can deploy helper contracts
+
+Focus on:
+- Business logic flaws exploitable by users
+- Economic attacks and value extraction
+- Broken invariants reachable via public functions
+- Oracle, pricing, or leverage manipulation by users
+- Reentrancy, DoS, and gas griefing by users
+- Fund loss, fund lockup, or unfair redistribution    
 
 ==================== REQUIRED JSON FORMAT ====================
 {
@@ -425,9 +460,6 @@ ${idx + 1}. ${issue.title}
 ` : 'No critical issues detected.'}
 
 ==============================================================================
-
-Raw JSON:
-${JSON.stringify(auditResult, null, 2)}
 `;
       
         fs.writeFileSync(resultFilePathTxt, resultContent, 'utf8');

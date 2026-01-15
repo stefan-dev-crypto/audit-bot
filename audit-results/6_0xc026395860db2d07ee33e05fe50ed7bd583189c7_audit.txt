@@ -1,0 +1,73 @@
+Contract Address: 0xc026395860db2d07ee33e05fe50ed7bd583189c7
+Source File: 1_0xc026395860db2d07ee33e05fe50ed7bd583189c7.sol
+Audit Date: 2026-01-15T13:06:38.520Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The contracts contain multiple critical vulnerabilities and business logic flaws that could lead to severe financial loss, fund lock, or total contract compromise. Key issues include potentially unsafe transfer/burn logic, unchecked balance manipulations, improper handling of slippage, race condition opportunities, insufficient validation on privileged actions, and possible denial of service when handling treasury or pool balances.
+
+
+Critical Issues Found:
+
+1. Unchecked subtraction can lead to underflow in 'withdrawTreasuryFee' and 'poolBalanceSD' manipulations
+   Type: Arithmetic Underflow/Overflow
+   Function: withdrawTreasuryFee,recoverToken,redeemSend,burnLockedUSDC,setDeficitOffset
+   
+   Attack Scenario:
+   An attacker could call 'withdrawTreasuryFee' with _amountSD > treasuryFee if onlyCaller(treasurer) is compromised, underflowing the value and allowing the attacker to withdraw the entire balance or freeze operations.
+   
+   Impact:
+   Treasury fee or pool balances could underflow, causing loss of funds or an out-of-bounds state, possibly blocking further withdrawals.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Missing input validation allows withdrawal of more tokens than available in 'recoverToken'
+   Type: Unauthorized Withdrawal
+   Function: recoverToken
+   
+   Attack Scenario:
+   If treasurer is malicious or compromised, calling recoverToken on an arbitrary ERC20 can drain contract assets, especially for token addresses not meant to be handled by the contract.
+   
+   Impact:
+   All ERC20 tokens accidentally sent to the contract or managed by it may be permanently lost to attacker/treasurer.
+   
+   Recommended Fix:
+   undefined
+
+
+3. Incorrect handling of slippage in '_chargeFee' allows for token loss or abnormal state
+   Type: Slippage/Math Validation Flaw
+   Function: _chargeFee
+   
+   Attack Scenario:
+   If IStargateFeeLib(feeLib).applyFee returns a value that does not satisfy minAmountOutSD checks, the contract could revert unexpectedly or treasuryFee could be incorrectly set.
+   
+   Impact:
+   Incorrect fee calculations can result in loss, unexpected reverts, or locked funds.
+   
+   Recommended Fix:
+   undefined
+
+
+4. Non-reentrant lock can be bypassed through deliberate revert in constructor or by attacking privileged roles
+   Type: Reentrancy
+   Function: setPause,withdrawTreasuryFee,addTreasuryFee,deposit,redeem,recoverToken
+   
+   Attack Scenario:
+   If privileged roles (planner, treasurer) are compromised, pause logic can be set to cause denial of service or enable reentrancy attacks if external calls are made.
+   
+   Impact:
+   Funds at risk, pausing of logic can be misused, and can result in a locked/frozen contract.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

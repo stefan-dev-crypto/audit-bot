@@ -1,0 +1,73 @@
+Contract Address: 0x4809010926aec940b550d34a46a52739f996d75d
+Source File: 30_0x4809010926aec940b550d34a46a52739f996d75d.sol
+Audit Date: 2026-01-15T13:29:14.532Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The contract PegStabilityModule contains several critical vulnerabilities and business logic flaws, including missing reentrancy protection on functions transferring assets, issues in the mint/redeem logic which can lead to fund mis-accounting and bypassing of supply invariants, and improper handling of decimal conversion which may result in the loss of precision or monetary value. The contract also lacks necessary access controls in sensitive state-changing functions.
+
+
+Critical Issues Found:
+
+1. Missing Reentrancy Protection in withdraw, mint, and redeem Logic
+   Type: Reentrancy
+   Function: withdraw,_mint,redeem,_redeem
+   
+   Attack Scenario:
+   A malicious contract could call back into the contract during the underlying.transfer call to manipulate the contract’s state, causing loss of funds or bypassing restrictions.
+   
+   Impact:
+   Could lead to loss of underlying tokens or manipulated state.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Improper Authorization on Mint and Withdraw Functions
+   Type: Access Control
+   Function: withdraw,mint
+   
+   Attack Scenario:
+   If the CONTROLLER role is misconfigured or granted to an unintended party, they can arbitrarily mint RUSD and withdraw underlying tokens.
+   
+   Impact:
+   Attackers can drain contract funds or mint arbitrary RUSD.
+   
+   Recommended Fix:
+   undefined
+
+
+3. Decimal Conversion Bugs in Mint/Redeem
+   Type: Precision Loss / Value Confusion
+   Function: _mint,_redeem
+   
+   Attack Scenario:
+   Incorrect handling of DECIMAL_FACTOR can lead to minting or redeeming wrong token amounts, causing inflation or loss.
+   
+   Impact:
+   Creation or redemption of incorrect token amount, potentially inflating supply.
+   
+   Recommended Fix:
+   undefined
+
+
+4. Lack of Checks for Underlying Address or rusd Address Validity
+   Type: Contract Initialization Vulnerability
+   Function: constructor
+   
+   Attack Scenario:
+   If unintentional or malicious zero address is set, user funds can be locked or irretrievable.
+   
+   Impact:
+   Irrecoverable loss of user funds.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

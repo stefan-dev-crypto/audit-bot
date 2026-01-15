@@ -1,0 +1,73 @@
+Contract Address: 0x28be6260dbb7872de5effc9a4a73c85b7405a8c0
+Source File: 35_0x28be6260dbb7872de5effc9a4a73c85b7405a8c0.sol
+Audit Date: 2026-01-15T13:33:20.861Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The audited code contains several critical vulnerabilities and business logic flaws. Notably, there are missing reentrancy protections on Ether/token transfers, unprotected initialization logic (initializer can be called multiple times or by attackers in some inheritance scenarios), and the use of untrusted and unchecked external contracts (address registry and vesting factory) without proper validation or safeguards. Additionally, critical business logic vulnerabilities exist around the handling of refunds and cancellations, and the unclear or missing state transitions post-cancellation expose the protocol to critical fund mismanagement risks.
+
+
+Critical Issues Found:
+
+1. Missing Reentrancy Protection on Fund Transfers
+   Type: Reentrancy
+   Function: refund,withdrawRaisedCapital,claimTokenAllocation,withdrawExcessInvestedCapital,withdrawInvestedCapitalIfCanceled
+   
+   Attack Scenario:
+   Attacker could use a malicious contract to re-enter functions like refund(), withdrawRaisedCapital(), claimTokenAllocation(), or withdrawExcessInvestedCapital() (and potentially others) and drain tokens or funds from the contract multiple times before state variables are updated.
+   
+   Impact:
+   Loss of all tokens/ETH in the contract; contract drained.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Improper/Unprotected Initialization Logic
+   Type: Initialization/Upgradeability
+   Function: initialize, constructor (Initializable)
+   
+   Attack Scenario:
+   Attacker could call initializer more than once or before the legitimate initialization in certain upgrade scenarios, allowing them to set themselves as the privileged admin addresses and take control.
+   
+   Impact:
+   Total contract takeover or permanent lockout of legitimate admins.
+   
+   Recommended Fix:
+   undefined
+
+
+3. No Proper Validation of External Addresses/Contracts
+   Type: Unchecked External Calls
+   Function: _syncLegionAddresses, _setLegionSaleConfig
+   
+   Attack Scenario:
+   Initialization sets addressConfig fields by reading from untrusted _addressRegistry contract. A malicious or compromised registry can return attacker addresses, who can then control admin functions or intercept funds.
+   
+   Impact:
+   Privileged role takeover, fee theft, or loss/theft of tokens.
+   
+   Recommended Fix:
+   undefined
+
+
+4. Unchecked Calls to External Vesting Factory
+   Type: Unchecked External Calls
+   Function: _createVesting
+   
+   Attack Scenario:
+   createLinearVesting can be made on an untrusted/malicious vestingFactory, leading to funds being locked permanently or sent to an attacker.
+   
+   Impact:
+   Total loss of allocated tokens for users.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

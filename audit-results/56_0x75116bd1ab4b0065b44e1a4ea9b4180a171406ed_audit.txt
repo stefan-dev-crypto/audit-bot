@@ -1,0 +1,59 @@
+Contract Address: 0x75116bd1ab4b0065b44e1a4ea9b4180a171406ed
+Source File: 52_0x75116bd1ab4b0065b44e1a4ea9b4180a171406ed.sol
+Audit Date: 2026-01-15T13:45:13.441Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The analyzed contract contains critical vulnerabilities, including uninitialized constructor context due to use of 'internal' visibility in constructors for deployment-ready contracts, which can lead to uninitialized contract states and potential ownership takeovers. There are also critical business logic flaws related to token rescue functions which can be exploited to steal user funds, and allowance/balance inconsistencies leading to potential asset losses. Additional issues involve unsafe token transfers, likely unguarded in the event of non-standard ERC20 implementations, and a lack of input validation in foundation functions.
+
+
+Critical Issues Found:
+
+1. Incorrect Constructor Visibility ('internal')
+   Type: Access Control / Initialization
+   Function: constructor
+   
+   Attack Scenario:
+   When this contract is deployed, the constructors of 'Ownable' and 'ReentrancyGuard' will not be executed due to their 'internal' visibility, which is intended for libraries or inherited contracts. As a result, the owner will remain unset, potentially allowing anyone to take ownership or breaking the onlyOwner mechanism.
+   
+   Impact:
+   Allows unauthorized parties to claim ownership or disables ownership checks completely, enabling potential rug pulls, governance hijacks, or critical function abuse.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Broken Token Rescue (rescueFunds) Allows Loss of User Funds
+   Type: Access Control / Fund Theft
+   Function: rescueFunds
+   
+   Attack Scenario:
+   The 'rescueFunds' function allows the owner to transfer any token (including liquidity tokens backing the AMM) to themselves, as long as final balances are not lower than before, and the internal token balance check relies on user-transferred tokens not being included, which can be bypassed in practice through reentrancy or off-chain manipulation.
+   
+   Impact:
+   Owner can steal all user funds deposited in the pool, or prevent correct withdrawal of funds in certain states.
+   
+   Recommended Fix:
+   undefined
+
+
+3. No Protection Against Non-standard ERC20s in Transfer Functions
+   Type: Unsafe External Call / ERC20 Compatibility
+   Function: deposit,withdraw,swap,rescueFunds
+   
+   Attack Scenario:
+   If a malicious or non-standard ERC20 token is added to the pool (lacking return values or reverting unconventionally), calls to 'uniTransfer' or 'uniTransferFromSenderToThis' may succeed without actually transferring tokens, or revert unexpectedly, leading to incorrect user balances or DoS scenarios.
+   
+   Impact:
+   Potential loss of funds, stuck tokens, or DOS of the AMM contract.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

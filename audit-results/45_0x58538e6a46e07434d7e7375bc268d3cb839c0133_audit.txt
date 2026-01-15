@@ -1,0 +1,59 @@
+Contract Address: 0x58538e6a46e07434d7e7375bc268d3cb839c0133
+Source File: 41_0x58538e6a46e07434d7e7375bc268d3cb839c0133.sol
+Audit Date: 2026-01-15T13:38:00.029Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The codebase consists of a complex LayerZero OFT (Omnichain Fungible Token) contracts, with ownable controls, cross-chain messaging, enforced options, adapters, and rate-limiting. After analysis of the constructs, there are critical vulnerabilities regarding unsafe ownership and transfer patterns, lack of zero-address checks in token transfers, as well as business logic errors in enforced limitations and upgradeability concerns. Notably, the `Ownable2StepAdapter` implementation does not properly lock out unsafe ownership transfers, and unchecked native/EIP-20 transfers could lead to stuck funds if the delegated contracts or endpoints are compromised.
+
+
+Critical Issues Found:
+
+1. Unsafe Ownership Transfer and Potential Loss of Control
+   Type: Access Control / Ownership Takeover
+   Function: transferOwnership,acceptOwnership
+   
+   Attack Scenario:
+   If an attacker is able to 'acceptOwnership' via the OFTOwnable2StepAdapter when mistakenly set as _pendingOwner by the current owner (or due to accidental leakage), the attacker can take full control of the contract, impacting all mutable admin operations including token movement. Also, there is an 'override' of _transferOwnership in child contracts (e.g., ENAOFTAdapter) that calls super._transferOwnership, but does not fully clean up _pendingOwner on all paths.
+   
+   Impact:
+   Critical loss of project and user funds or contract governance. Malicious owner could drain funds, block user operations, or brick the contract.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Unchecked External Calls on endpoint.setDelegate and endpoint.send
+   Type: External Call to Untrusted Contract
+   Function: constructor,setDelegate,_lzSend
+   
+   Attack Scenario:
+   The OAppCore's constructor and setDelegate call endpoint.setDelegate(_delegate) on an externally supplied _endpoint. If endpoint is a malicious or compromised contract (or one not following the expected interface), it can perform arbitrary calls or reentrancy. Similarly, the endpoint.send call is not checked for reentrancy, revert reason, nor return value.
+   
+   Impact:
+   Native funds can be locked, lost, or contracts could be manipulated via reentrancy or malicious fallback execution. Ownership or logic could be hijacked if endpoint behaves maliciously.
+   
+   Recommended Fix:
+   undefined
+
+
+3. ERC20 Transfers Without Zero Address Checks
+   Type: Token Loss / Stuck Funds
+   Function: _payLzToken,_debit,_credit
+   
+   Attack Scenario:
+   OAppSender and OFTAdapter perform transfers using safeTransferFrom/safeTransfer but do not confirm that the token address (lzToken in endpoint.lzToken()) or recipient addresses are non-zero. If endpoint.lzToken() returns address(0), and this is not handled correctly elsewhere, safeTransferFrom may succeed without effect or revert unexpectedly. InnerToken transfers could result in lost tokens if misconfigured.
+   
+   Impact:
+   Permanent loss of user tokens, inability to recover funds, or denial of service to users attempting cross-chain sends.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

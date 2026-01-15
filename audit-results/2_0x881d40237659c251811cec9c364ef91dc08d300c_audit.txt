@@ -1,0 +1,221 @@
+Contract Address: 0x881d40237659c251811cec9c364ef91dc08d300c
+Source File: 3_0x881d40237659c251811cec9c364ef91dc08d300c.sol
+Audit Date: 2026-01-15T12:46:22.852Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The code contains critical vulnerabilities and critical business logic flaws. The most severe include unsafe delegatecalls enabling arbitrary code execution, broken trust boundaries between MetaSwap and its Spender, and unsafe handling of ETH/WETH flows, potentially resulting in unauthorized token/ETH theft or draining. Adapters can be set with arbitrary contract addresses. There is also inadequate validation on swap flows, lack of access restrictions in Spender, and possible loss of assets due to improper clearing of token balances and failure to check required message values for ETH payments, as well as unsafe handling and upgrading of adapters.
+
+
+Critical Issues Found:
+
+1. Unsafe delegatecall in Spender allows arbitrary code execution
+   Type: Arbitrary Delegatecall (Code Execution)
+   Function: swap, _delegate
+   
+   Attack Scenario:
+   An attacker who gains control over MetaSwap's adapters (or via a compromised owner, or by exploiting a logic flaw in how adapters are set or removed) can cause Spender to perform delegatecalls to malicious contracts, granting them access to MetaSwap storage and funds.
+   
+   Impact:
+   Complete contract compromise, theft of all ERC20 tokens and ETH, loss of funds, or unexpected code execution.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Unvalidated adapter code in MetaSwap enables arbitrary contract execution
+   Type: Insecure External Call / Adapter Injection
+   Function: setAdapter,_swap
+   
+   Attack Scenario:
+   The MetaSwap contract lets the owner set arbitrary adapters without validating their code, allowing malicious adapters to be set and used in swaps, leading to theft or arbitrary execution.
+   
+   Impact:
+   Total asset theft/consensus-breaking or malicious behaviors.
+   
+   Recommended Fix:
+   undefined
+
+
+3. Loss of msg.value in aggregator swap calls
+   Type: Value Loss / Funds Burned
+   Function: swap
+   
+   Attack Scenario:
+   If aggregator.functionCallWithValue is called with msg.value and fails or does not process ETH as expected, the whole value may be lost or stuck. External aggregators are not trusted and might revert/stall with funds.
+   
+   Impact:
+   ETH permanently stuck/lost.
+   
+   Recommended Fix:
+   undefined
+
+
+4. No validation that Spender is trusted, allowing MetaSwap-owned Spender to be swapped
+   Type: Broken Trust Assumptions
+   Function: _swap
+   
+   Attack Scenario:
+   Spender is deployed during MetaSwap construction, but if anyone deploys another Spender with code changes, upgrades, or via proxy attacks, the trust boundary is broken.
+   
+   Impact:
+   Unintended code execution, asset theft.
+   
+   Recommended Fix:
+   undefined
+
+
+5. _approveSpender doesn't reset allowance to 0 before overwriting on nonzero ERC20s
+   Type: ERC20 Double-Spend Attack
+   Function: _approveSpender
+   
+   Attack Scenario:
+   A non-standard ERC20 may require allowance to be zero before updating. If not set to 0 first, the approve can fail or behave incorrectly.
+   
+   Impact:
+   Potential stuck approvals or unintended behaviors (esp. old ERC20 tokens, e.g. USDT).
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================
+
+Raw JSON:
+{
+  "critical_vulnerability_exists": true,
+  "bussiness_logic_flaws_exists": true,
+  "summary": "The code contains critical vulnerabilities and critical business logic flaws. The most severe include unsafe delegatecalls enabling arbitrary code execution, broken trust boundaries between MetaSwap and its Spender, and unsafe handling of ETH/WETH flows, potentially resulting in unauthorized token/ETH theft or draining. Adapters can be set with arbitrary contract addresses. There is also inadequate validation on swap flows, lack of access restrictions in Spender, and possible loss of assets due to improper clearing of token balances and failure to check required message values for ETH payments, as well as unsafe handling and upgrading of adapters.",
+  "critical_issues": [
+    {
+      "title": "Unsafe delegatecall in Spender allows arbitrary code execution",
+      "vulnerability_type": "Arbitrary Delegatecall (Code Execution)",
+      "attack_scenario": "An attacker who gains control over MetaSwap's adapters (or via a compromised owner, or by exploiting a logic flaw in how adapters are set or removed) can cause Spender to perform delegatecalls to malicious contracts, granting them access to MetaSwap storage and funds.",
+      "impact": "Complete contract compromise, theft of all ERC20 tokens and ETH, loss of funds, or unexpected code execution.",
+      "affected_contract": "Spender",
+      "affected_function": "swap, _delegate",
+      "affected_line_number": [
+        "Spender:17-23",
+        "Spender:25-39"
+      ]
+    },
+    {
+      "title": "Unvalidated adapter code in MetaSwap enables arbitrary contract execution",
+      "vulnerability_type": "Insecure External Call / Adapter Injection",
+      "attack_scenario": "The MetaSwap contract lets the owner set arbitrary adapters without validating their code, allowing malicious adapters to be set and used in swaps, leading to theft or arbitrary execution.",
+      "impact": "Total asset theft/consensus-breaking or malicious behaviors.",
+      "affected_contract": "MetaSwap",
+      "affected_function": [
+        "setAdapter",
+        "_swap"
+      ],
+      "affected_line_number": [
+        "MetaSwap:19-28",
+        "MetaSwap:61-79"
+      ]
+    },
+    {
+      "title": "Loss of msg.value in aggregator swap calls",
+      "vulnerability_type": "Value Loss / Funds Burned",
+      "attack_scenario": "If aggregator.functionCallWithValue is called with msg.value and fails or does not process ETH as expected, the whole value may be lost or stuck. External aggregators are not trusted and might revert/stall with funds.",
+      "impact": "ETH permanently stuck/lost.",
+      "affected_contract": [
+        "CommonAdapter",
+        "FeeCommonAdapter",
+        "WethAdapter",
+        "FeeWethAdapter"
+      ],
+      "affected_function": "swap",
+      "affected_line_number": [
+        "CommonAdapter:16-30",
+        "FeeCommonAdapter:16-36",
+        "WethAdapter:16-36",
+        "FeeWethAdapter:16-38"
+      ]
+    },
+    {
+      "title": "No validation that Spender is trusted, allowing MetaSwap-owned Spender to be swapped",
+      "vulnerability_type": "Broken Trust Assumptions",
+      "attack_scenario": "Spender is deployed during MetaSwap construction, but if anyone deploys another Spender with code changes, upgrades, or via proxy attacks, the trust boundary is broken.",
+      "impact": "Unintended code execution, asset theft.",
+      "affected_contract": "MetaSwap",
+      "affected_function": "_swap",
+      "affected_line_number": "MetaSwap:61-79"
+    },
+    {
+      "title": "_approveSpender doesn't reset allowance to 0 before overwriting on nonzero ERC20s",
+      "vulnerability_type": "ERC20 Double-Spend Attack",
+      "attack_scenario": "A non-standard ERC20 may require allowance to be zero before updating. If not set to 0 first, the approve can fail or behave incorrectly.",
+      "impact": "Potential stuck approvals or unintended behaviors (esp. old ERC20 tokens, e.g. USDT).",
+      "affected_contract": [
+        "CommonAdapter",
+        "FeeCommonAdapter",
+        "WethAdapter",
+        "FeeWethAdapter",
+        "UniswapAdapter"
+      ],
+      "affected_function": "_approveSpender",
+      "affected_line_number": [
+        "CommonAdapter:52-67",
+        "FeeCommonAdapter:59-74",
+        "WethAdapter:58-73",
+        "FeeWethAdapter:64-79",
+        "UniswapAdapter:80-95"
+      ]
+    }
+  ],
+  "critical_bussiness_logic_flaws": [
+    {
+      "title": "Allowing owner to re-add previously removed adapters",
+      "bussiness_logic_flaw_type": "Broken Adapter Removal",
+      "impact": "Owner can re-add adapters even if marked removed, breaking blacklist logic and re-enabling previously banned/threatening adapters.",
+      "affected_contract": "MetaSwap",
+      "affected_function": "setAdapter",
+      "affected_line_number": "MetaSwap:20-25"
+    },
+    {
+      "title": "Improper ETH/WETH handling and potential rounding/loss/bypass in FeeWethAdapter and WethAdapter",
+      "bussiness_logic_flaw_type": "Inconsistent Asset Handling",
+      "impact": "Unwrapping and sweeping all WETH/ETH balances at recipient-send-out time can result in loss of residual funds, impossible accounting, unwanted asset mixing, and abuse by users expecting strict accounting.",
+      "affected_contract": [
+        "WethAdapter",
+        "FeeWethAdapter"
+      ],
+      "affected_function": [
+        "swap",
+        "_unwrapWETH"
+      ],
+      "affected_line_number": [
+        "WethAdapter:21-49",
+        "FeeWethAdapter:22-54"
+      ]
+    },
+    {
+      "title": "Lack of nonReentrant modifier on swap in Adapters",
+      "bussiness_logic_flaw_type": "Reentrancy Issue",
+      "impact": "No reentrancy protection in the swap function of Adapters, opening up the possibility (albeit more limited here) for reentrancy attacks, especially if tokens or ETH are malicious or callbacks occur.",
+      "affected_contract": [
+        "CommonAdapter",
+        "FeeCommonAdapter",
+        "WethAdapter",
+        "FeeWethAdapter",
+        "UniswapAdapter"
+      ],
+      "affected_function": "swap",
+      "affected_line_number": [
+        "CommonAdapter:6-46",
+        "FeeCommonAdapter:13-56",
+        "WethAdapter:14-56",
+        "FeeWethAdapter:14-58",
+        "UniswapAdapter:15-72"
+      ]
+    }
+  ],
+  "critical_issues_count": 5,
+  "critical_bussiness_logic_flaws_count": 3
+}

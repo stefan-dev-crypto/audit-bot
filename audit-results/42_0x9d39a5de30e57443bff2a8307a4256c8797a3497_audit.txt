@@ -1,0 +1,45 @@
+Contract Address: 0x9d39a5de30e57443bff2a8307a4256c8797a3497
+Source File: 38_0x9d39a5de30e57443bff2a8307a4256c8797a3497.sol
+Audit Date: 2026-01-15T13:35:18.060Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The contracts present both critical vulnerabilities including missing reentrancy protections and critical business logic flaws in user cooldown management, which can lead to asset loss or unintended user privilege over assets.
+
+
+Critical Issues Found:
+
+1. Unprotected External Call Enables Reentrancy in USDeSilo.withdraw
+   Type: Reentrancy
+   Function: withdraw
+   
+   Attack Scenario:
+   If the USDe token used in USDeSilo is a malicious ERC20 that invokes callbacks (e.g., via `transfer`), an attacker could re-enter the StakedUSDeV2 contract via a crafted token contract during unstake, potentially bypassing business logic or even causing state inconsistencies.
+   
+   Impact:
+   Could allow draining of funds or bypass of cooldowns; potential for loss of user and protocol assets.
+   
+   Recommended Fix:
+   undefined
+
+
+2. UserCooldown Underflow/Overflow & Multiple Cooldowns Overlapping
+   Type: Incorrect State Update / Overlapping Cooldowns
+   Function: cooldownAssets,cooldownShares,unstake
+   
+   Attack Scenario:
+   A user can repeatedly call `cooldownAssets` or `cooldownShares` before cooldown completion. The contract does not strictly enforce single-cooldown-per-user or proper resetting, causing `underlyingAmount` to accumulate and cooldownEnd to be overwritten. A user can drain more assets than intended or bypass per-period restrictions.
+   
+   Impact:
+   Can result in users withdrawing more than their real stake or bypassing cooldown lockup, violating critical protocol safety assumptions.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

@@ -19,7 +19,7 @@ export class ApprovalListener {
     this.isRunning = false;
     this.lastProcessedBlock = 0;
     this.dexScreenerChainId = getDexScreenerChainId(chainConfig.chainId);
-    this.minValueUsd = 1000; // Minimum $1000 in token holdings
+    this.minValueUsd = 10000; // Minimum $10000 in token holdings
     this.pendingValueChecks = []; // Queue for batch value checking
     this.valueCheckInterval = null;
   }
@@ -246,6 +246,12 @@ export class ApprovalListener {
 
         const tokenInfo = priceMap[tokenAddressLower];
         const tokenPrice = tokenInfo.price;
+        
+        // Validate token price
+        if (!tokenPrice || tokenPrice <= 0 || isNaN(tokenPrice)) {
+          console.log(`   ⏭️  ${item.contractAddress}: Invalid token price ($${tokenPrice})`);
+          continue;
+        }
 
         // Get token balance and decimals
         const balanceInfo = await getTokenBalance(item.tokenAddress, item.contractAddress, this.provider);
@@ -254,11 +260,23 @@ export class ApprovalListener {
           console.log(`   ⏭️  ${item.contractAddress}: Failed to get balance`);
           continue;
         }
+        
+        // Validate balance
+        if (!balanceInfo.balance || balanceInfo.balance === '0') {
+          console.log(`   ⏭️  ${item.contractAddress}: Zero balance in ${tokenInfo.symbol}`);
+          continue;
+        }
 
         // Calculate value
         const value = calculateContractValue(balanceInfo.balance, balanceInfo.decimals, tokenPrice);
+        
+        // Validate calculated value
+        if (isNaN(value) || value === null || value === undefined) {
+          console.log(`   ⏭️  ${item.contractAddress}: Invalid calculated value (NaN)`);
+          continue;
+        }
 
-        // Only record if meets threshold
+        // Only record if meets threshold (strict check)
         if (value >= this.minValueUsd) {
           this.tracker.markAsProcessed(item.contractAddress, item.tokenAddress);
           console.log(`   💎 ${item.contractAddress}: $${value.toFixed(2)} in ${tokenInfo.symbol} → ✅ Recorded`);

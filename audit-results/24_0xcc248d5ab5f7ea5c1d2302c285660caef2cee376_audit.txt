@@ -1,0 +1,59 @@
+Contract Address: 0xcc248d5ab5f7ea5c1d2302c285660caef2cee376
+Source File: 20_0xcc248d5ab5f7ea5c1d2302c285660caef2cee376.sol
+Audit Date: 2026-01-15T13:20:03.514Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The contract contains both critical security vulnerabilities and high-severity business logic flaws. The most severe vulnerabilities include arithmetic underflow/overflow risks due to unchecked math and improper subtraction from totalAssets_ (a shadow copy) prior to burns, plus insufficient checks around asset withdrawal and reentrancy risk. Major business logic flaws include potential for asset/accounting mismatches and incorrect cooldown/reward logic due to missing/incorrect invariants and checks.
+
+
+Critical Issues Found:
+
+1. Unchecked Arithmetic: Underflow/Overflow Risk
+   Type: Unchecked Arithmetic
+   Function: cooldownAssets,cooldownShares,beforeWithdraw,afterDeposit,distributeRewards
+   
+   Attack Scenario:
+   A malicious user may trigger underflows (e.g., totalAssets_ underflowing by repeatedly calling cooldownAssets/cooldownShares with amounts higher than available) which could result in corrupted accounting, bypassed limits, or withdrawals of unbacked assets.
+   
+   Impact:
+   Critical accounting corruption, potential loss of funds, inconsistency in asset/shares balances.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Direct Use of totalAssets_ Variable Without Synchronization
+   Type: Asset/Share Accounting Inconsistent with ERC4626
+   Function: cooldownAssets,cooldownShares,beforeWithdraw,afterDeposit,claim,distributeRewards
+   
+   Attack Scenario:
+   If totalAssets_ is not properly synchronized with the actual asset balance (especially after rescueTokens or other direct balance modifications), users may be able to claim more than their share (over-withdraw), and the contract could become insolvent.
+   
+   Impact:
+   Potential fund losses, ability to withdraw more than deposited, insolvency risk.
+   
+   Recommended Fix:
+   undefined
+
+
+3. Missing Reentrancy Guard on External Asset Transfer
+   Type: Reentrancy
+   Function: claim,withdrawSurplusRewards,rescueTokens
+   
+   Attack Scenario:
+   Malicious contract could re-enter claim(), withdrawSurplusRewards(), or rescueTokens() via asset.safeTransfer, potentially causing accounting corruption or bypassing necessary state modifications.
+   
+   Impact:
+   Loss of funds, repeated claims/withdrawals, contract invariants broken.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

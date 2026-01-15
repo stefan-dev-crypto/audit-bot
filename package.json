@@ -12,6 +12,7 @@
     "test-parallel": "node scripts/testParallelAudit.js",
     "test-persistence": "node scripts/testAuditPersistence.js",
     "test-language": "node scripts/testLanguageDetection.js",
+    "verify-values": "node scripts/verifyContractValues.js",
     "clean-proxy": "node scripts/cleanProxyAudits.js"
   },
   "keywords": [

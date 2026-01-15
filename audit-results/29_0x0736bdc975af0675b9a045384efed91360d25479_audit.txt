@@ -1,0 +1,87 @@
+Contract Address: 0x0736bdc975af0675b9a045384efed91360d25479
+Source File: 25_0x0736bdc975af0675b9a045384efed91360d25479.sol
+Audit Date: 2026-01-15T13:23:38.746Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The Aori contract presents several significant security risks and critical design flaws that could result in loss of user funds or allow unauthorized asset transfers. The primary vulnerabilities are unchecked/external call reentrancy, improper Ether handling, missing access controls on hook execution, lack of input validation, usage of safeTransfer without error management for ERC-20 bugs, and possible attack surfaces in the emergency functions.
+
+
+Critical Issues Found:
+
+1. Unrestricted External Call to Hook Contracts - Arbitrary Code Execution
+   Type: External Call/Reentrancy/Asset Drain
+   Function: _executeSrcHook,_executeDstHook
+   
+   Attack Scenario:
+   Malicious or compromised hook contracts (used in _executeSrcHook and _executeDstHook) could reenter the contract or exploit approved privileges to withdraw or move funds, especially if their code is malicious. Since hooks are only checked for 'isAllowedHook', a malicious owner, governance compromise or allowlisting could allow an attacker to execute arbitrary logic with contract balance context.
+   
+   Impact:
+   Potential loss of contract funds, users' balances, or disruption of protocol logic via arbitrary code execution from allowed hook contracts. Also magnifies risk of DoS or gas grief attacks.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Unsafe Ether Handling in emergencyWithdraw
+   Type: Unprotected Ether Withdrawal
+   Function: emergencyWithdraw(address token, uint256 amount)
+   
+   Attack Scenario:
+   The owner can withdraw all Ether from the contract, even if that Ether is user collateral, possibly allowing owner to steal or accidentally drain user funds intended for in-progress swaps or settlements.
+   
+   Impact:
+   Total loss of user collateral denominated in ETH if the contract's owner is malicious or compromised.
+   
+   Recommended Fix:
+   undefined
+
+
+3. Missing Input Validation for Arbitrary Token Transfers
+   Type: Unsafe Token Transfer / Missing ERC20 Compliance Checks
+   Function: deposit,_executeSrcHook,_executeDstHook,emergencyWithdraw,withdraw,emergencyCancel
+   
+   Attack Scenario:
+   'safeTransfer' and 'safeTransferFrom' are used throughout, but not all ERC20 tokens fully comply or revert on failure, and custom implementations could result in silent failures, asset loss, or tokens trapped in contract.
+   
+   Impact:
+   Permanent loss or theft of user tokens, stuck funds, or accounting errors.
+   
+   Recommended Fix:
+   undefined
+
+
+4. Potential for Order Processing Reentrancy
+   Type: Reentrancy/State Corruption
+   Function: _executeSrcHook,_executeDstHook,deposit,fill
+   
+   Attack Scenario:
+   Although ReentrancyGuard is present, logic flows in hook execution (_executeSrcHook) could call back into Aori or call ERC20 callbacks that could modify state (reentrancy via ERC777 or tokens with arbitrary code on transfer).
+   
+   Impact:
+   Manipulated balances or settlement flows, leading to double-spending, theft, or protocol breakage.
+   
+   Recommended Fix:
+   undefined
+
+
+5. Hook Allowlisting Centralization/Privilege Escalation
+   Type: Admin Risk / Backdoor
+   Function: addAllowedHook,removeAllowedHook,_executeSrcHook,_executeDstHook
+   
+   Attack Scenario:
+   The owner can allow their own contracts as allowed hooks which can then drain user funds or bypass security assumptions, since nearly all hook logic is arbitrary and highly privileged.
+   
+   Impact:
+   Full privilege escalation; rug/scam risk if governance compromised or owner goes rogue.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================
