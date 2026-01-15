@@ -48,10 +48,12 @@ export async function sendTelegramMessage(botToken, chatId, message) {
  * @param {string} chatId - Telegram chat ID
  */
 export async function sendVulnerabilityAlert(contractAddress, vulnerabilityNames, botToken, chatId) {
+  const chainName = "Ethereum";
   const vulnList = vulnerabilityNames.map(v => `• ${v}`).join('\n');
   
   const message = `🚨 <b>CRITICAL VULNERABILITY DETECTED</b> 🚨
 
+🌐 <b>Chain:</b> <code>${chainName}</code>
 📍 <b>Contract:</b> <code>${contractAddress}</code>
 
 🔴 <b>Vulnerabilities Found:</b>

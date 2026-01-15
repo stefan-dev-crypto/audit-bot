@@ -90,9 +90,10 @@ export class BackgroundProcessor {
 
   /**
    * Check for unprocessed contracts and process them (in parallel)
+   * Note: All contracts in processed-contracts.json have already been filtered by value (≥$1000)
    */
   async checkAndProcessContracts() {
-    // Load processed contracts (detected addresses)
+    // Load processed contracts (detected addresses that passed value filtering)
     if (!fs.existsSync(this.processedContractsFile)) {
       return;
     }
@@ -106,26 +107,35 @@ export class BackgroundProcessor {
       return;
     }
 
+    // Convert to array of objects if old format (array of strings)
+    const contractPairs = processedContracts.map(item => {
+      if (typeof item === 'string') {
+        return { contractAddress: item, tokenAddress: null };
+      }
+      return item;
+    });
+
     // Find contracts that haven't been audited yet
-    const unauditedContracts = processedContracts.filter(
-      address => !this.auditorPool.isAudited(address) && !this.currentlyProcessing.includes(address)
+    const unauditedPairs = contractPairs.filter(
+      pair => !this.auditorPool.isAudited(pair.contractAddress) && 
+              !this.currentlyProcessing.includes(pair.contractAddress)
     );
 
-    if (unauditedContracts.length === 0) {
+    if (unauditedPairs.length === 0) {
       return;
     }
 
     // Process multiple contracts in parallel (up to maxConcurrentProcessing)
     const processingPromises = [];
-    const contractsToProcess = unauditedContracts.slice(0, this.maxConcurrentProcessing - this.currentlyProcessing.length);
+    const contractsToProcess = unauditedPairs.slice(0, this.maxConcurrentProcessing - this.currentlyProcessing.length);
     
-    for (const contractAddress of contractsToProcess) {
+    for (const pair of contractsToProcess) {
       if (!this.isRunning) break;
 
       // Start processing in parallel (don't await)
-      const promise = this.processContract(contractAddress)
+      const promise = this.processContract(pair.contractAddress)
         .catch(error => {
-          console.error(`❌ Processing error for ${contractAddress}:`, error.message);
+          console.error(`❌ Processing error for ${pair.contractAddress}:`, error.message);
         });
       
       processingPromises.push(promise);

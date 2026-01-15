@@ -4,8 +4,9 @@ A modular JavaScript bot that monitors ERC20 token approval events on Ethereum a
 
 ## Features
 
-- 🔍 **Real-time monitoring** of ERC20 Approval events
+- 🔍 **Real-time monitoring** of ERC20 Approval and Transfer events
 - 🤖 **Contract-only filtering** - ignores regular wallets
+- 💰 **Value-based filtering** - only audits contracts holding ≥$1000 in tokens
 - 📝 **Automatic source fetching** from Etherscan
 - 🔒 **AI-powered auditing** - OpenAI GPT-4 security analysis
 - 💾 **Smart caching** - avoids duplicate fetches and audits
@@ -113,12 +114,32 @@ CHAIN=ethereum
 
 ## How It Works
 
-1. Monitors ERC20 Approval events in real-time
-2. Filters for contract spenders (not wallets)
-3. Fetches verified source from Etherscan
-4. Flattens multi-file contracts into one `.sol` file
-5. Saves with incremental numbering
-6. Caches to avoid duplicate fetches
+1. Monitors ERC20 Approval and Transfer events in real-time
+2. Filters for contract addresses (not wallets)
+3. **Value filtering** (before recording):
+   - Queues detected contracts for batch value checking (every 5 seconds)
+   - Fetches token prices from DexScreener (up to 30 tokens per batch)
+   - Queries blockchain for token balance and decimals
+   - Calculates contract value: `token_price × (token_balance / 10^decimals)`
+   - **Only records contracts with ≥$1,000 in tokens** to `processed-contracts.json`
+4. Fetches verified source from Etherscan
+5. Flattens multi-file contracts into one `.sol` file
+6. Audits with GPT-4 for security vulnerabilities
+7. Saves with incremental numbering
+8. Caches to avoid duplicate fetches and audits
+
+## Value Filtering
+
+The bot includes intelligent value-based filtering that happens **before recording**:
+
+- **Minimum threshold**: $1,000 USD in token holdings
+- **Batch processing**: Checks up to 30 contracts every 5 seconds
+- **Price source**: DexScreener API (real-time DEX prices)
+- **Token balance**: Direct blockchain queries via ethers.js
+- **Calculation**: `value = tokenPrice × (tokenBalance / 10^decimals)`
+- **Recording**: Only contracts meeting the threshold are saved to `processed-contracts.json`
+
+This ensures only high-value contracts are recorded and audited, reducing noise and saving resources.
 
 ## Extending to Other Chains
 

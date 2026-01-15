@@ -14,6 +14,7 @@ export class ContractTracker {
   constructor(dataDir = './data', statistics = null) {
     this.dataDir = dataDir;
     this.processedContracts = new Set();
+    this.contractTokenMap = new Map(); // Map of contractAddress -> tokenAddress
     this.contractsFilePath = path.join(dataDir, 'processed-contracts.json');
     this.statistics = statistics || new AuditStatistics(dataDir);
     
@@ -66,12 +67,26 @@ export class ContractTracker {
   loadProcessedContracts() {
     try {
       this.processedContracts = new Set();
+      this.contractTokenMap = new Map();
       
       // Load main file
       if (fs.existsSync(this.contractsFilePath)) {
         const data = fs.readFileSync(this.contractsFilePath, 'utf8');
         const contracts = JSON.parse(data);
-        contracts.forEach(addr => this.processedContracts.add(addr));
+        
+        // Support both old format (array of strings) and new format (array of objects)
+        contracts.forEach(item => {
+          if (typeof item === 'string') {
+            // Old format: just contract address
+            this.processedContracts.add(item);
+          } else if (item && item.contractAddress) {
+            // New format: { contractAddress, tokenAddress }
+            this.processedContracts.add(item.contractAddress);
+            if (item.tokenAddress) {
+              this.contractTokenMap.set(item.contractAddress, item.tokenAddress);
+            }
+          }
+        });
       }
       
       // Load split files if they exist (processed-contracts-1.json, etc.)
@@ -83,7 +98,17 @@ export class ContractTracker {
           const filePath = path.join(this.dataDir, file);
           const data = fs.readFileSync(filePath, 'utf8');
           const contracts = JSON.parse(data);
-          contracts.forEach(addr => this.processedContracts.add(addr));
+          
+          contracts.forEach(item => {
+            if (typeof item === 'string') {
+              this.processedContracts.add(item);
+            } else if (item && item.contractAddress) {
+              this.processedContracts.add(item.contractAddress);
+              if (item.tokenAddress) {
+                this.contractTokenMap.set(item.contractAddress, item.tokenAddress);
+              }
+            }
+          });
         }
       }
       
@@ -93,6 +118,7 @@ export class ContractTracker {
     } catch (error) {
       console.error('Error loading processed contracts:', error.message);
       this.processedContracts = new Set();
+      this.contractTokenMap = new Map();
     }
   }
   
@@ -101,7 +127,14 @@ export class ContractTracker {
    */
   saveProcessedContracts() {
     try {
-      const contracts = Array.from(this.processedContracts);
+      // Build array with contract-token pairs
+      const contracts = Array.from(this.processedContracts).map(contractAddress => {
+        const tokenAddress = this.contractTokenMap.get(contractAddress);
+        return tokenAddress 
+          ? { contractAddress, tokenAddress }
+          : { contractAddress };
+      });
+      
       const jsonString = JSON.stringify(contracts, null, 2);
       const fileSize = Buffer.byteLength(jsonString, 'utf8');
       const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -142,9 +175,11 @@ export class ContractTracker {
   /**
    * Mark a contract as processed
    * @param {string} address - Contract address
+   * @param {string} tokenAddress - Token address (optional)
    */
-  markAsProcessed(address) {
+  markAsProcessed(address, tokenAddress = null) {
     const normalizedAddress = address.toLowerCase();
+    const normalizedTokenAddress = tokenAddress ? tokenAddress.toLowerCase() : null;
     
     // Only increment if it's a new contract
     if (!this.processedContracts.has(normalizedAddress)) {
@@ -152,7 +187,34 @@ export class ContractTracker {
     }
     
     this.processedContracts.add(normalizedAddress);
+    
+    // Store token address if provided
+    if (normalizedTokenAddress) {
+      this.contractTokenMap.set(normalizedAddress, normalizedTokenAddress);
+    }
+    
     this.saveProcessedContracts();
+  }
+  
+  /**
+   * Get token address for a contract
+   * @param {string} address - Contract address
+   * @returns {string|null} Token address or null
+   */
+  getTokenAddress(address) {
+    const normalizedAddress = address.toLowerCase();
+    return this.contractTokenMap.get(normalizedAddress) || null;
+  }
+  
+  /**
+   * Get all contract-token pairs
+   * @returns {Array<Object>} Array of { contractAddress, tokenAddress }
+   */
+  getContractTokenPairs() {
+    return Array.from(this.processedContracts).map(contractAddress => ({
+      contractAddress,
+      tokenAddress: this.contractTokenMap.get(contractAddress) || null
+    }));
   }
   
   /**
