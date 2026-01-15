@@ -1,0 +1,53 @@
+Contract Address: 0xc2d0d6c49979703c524be2d21776c4874c92180e
+Source File: 1294_0xc2d0d6c49979703c524be2d21776c4874c92180e.sol
+Audit Date: 2026-01-14T23:08:05.560Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The contract system allows a general external attacker to execute arbitrary calls through the programmable 'weiroll' VM, potentially enabling the stealing of ETH or ERC20 tokens that reside in the ZapperExecutor contract during execution.
+
+Attack Surface: ETH, ERC20
+
+
+Critical Issues Found:
+
+1. Arbitrary Call Execution Enables Token/ETH Theft
+   Type: Arbitrary External Call / Insufficient Command Restriction
+   Function: Zapper2.zap, Zapper2.zapDeploy, Zapper2.zapERC20, Zapper2.zapETH, Zapper2.zapToETH (delegate to ZapperExecutor.execute & ZapperExecutor.executeDeploy)
+   
+   Attack Scenario:
+   An attacker can craft malicious 'program' and 'commands' data for the weiroll VM used by Zapper2 and ZapperExecutor. These can invoke arbitrary external calls from the context of the ZapperExecutor, including calls that transfer all ETH or ERC20 tokens held by ZapperExecutor to the attacker's address. For example, the VM can be programmed to call 'transfer' or 'withdraw' on any token the contract holds, or selfdestruct calls, without restriction.
+   
+   Impact:
+   Allows a general external user to steal any ERC20 tokens or ETH held by ZapperExecutor, breaking core fund isolation guarantees and enabling full theft of assets processed by the Zapper2 system.
+   
+   Recommended Fix:
+   Strictly validate/sanitize 'program' and 'commands' before execution. Ensure that only whitelisted contract methods are callable and never allow user-supplied data to result in arbitrary calls or transfers from the contract. A deterministic allowlist or static analysis to restrict dangerous call targets and function selectors should be implemented.
+
+
+
+==============================================================================
+
+Raw JSON:
+{
+  "critical_vulnerability_exists": true,
+  "summary": "The contract system allows a general external attacker to execute arbitrary calls through the programmable 'weiroll' VM, potentially enabling the stealing of ETH or ERC20 tokens that reside in the ZapperExecutor contract during execution.",
+  "attack_surface": [
+    "ETH",
+    "ERC20"
+  ],
+  "critical_issues": [
+    {
+      "title": "Arbitrary Call Execution Enables Token/ETH Theft",
+      "vulnerability_type": "Arbitrary External Call / Insufficient Command Restriction",
+      "affected_function": "Zapper2.zap, Zapper2.zapDeploy, Zapper2.zapERC20, Zapper2.zapETH, Zapper2.zapToETH (delegate to ZapperExecutor.execute & ZapperExecutor.executeDeploy)",
+      "attack_scenario": "An attacker can craft malicious 'program' and 'commands' data for the weiroll VM used by Zapper2 and ZapperExecutor. These can invoke arbitrary external calls from the context of the ZapperExecutor, including calls that transfer all ETH or ERC20 tokens held by ZapperExecutor to the attacker's address. For example, the VM can be programmed to call 'transfer' or 'withdraw' on any token the contract holds, or selfdestruct calls, without restriction.",
+      "impact": "Allows a general external user to steal any ERC20 tokens or ETH held by ZapperExecutor, breaking core fund isolation guarantees and enabling full theft of assets processed by the Zapper2 system.",
+      "recommended_fix": "Strictly validate/sanitize 'program' and 'commands' before execution. Ensure that only whitelisted contract methods are callable and never allow user-supplied data to result in arbitrary calls or transfers from the contract. A deterministic allowlist or static analysis to restrict dangerous call targets and function selectors should be implemented."
+    }
+  ]
+}

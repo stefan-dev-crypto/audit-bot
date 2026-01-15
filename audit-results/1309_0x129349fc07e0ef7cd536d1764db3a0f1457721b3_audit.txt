@@ -1,0 +1,52 @@
+Contract Address: 0x129349fc07e0ef7cd536d1764db3a0f1457721b3
+Source File: 1309_0x129349fc07e0ef7cd536d1764db3a0f1457721b3.sol
+Audit Date: 2026-01-14T23:12:41.187Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+A general external attacker can steal all ETH held by the contract via the native refund logic in sendToChain, since it refunds the ENTIRE contract balance to tx.origin after every bridge operation, regardless of who the sender is or whether there are leftover funds unrelated to the current operation.
+
+Attack Surface: ETH
+
+
+Critical Issues Found:
+
+1. ETH Drain via Refund To tx.origin
+   Type: Uncontrolled ETH Refund (Reentrancy/Incorrect Refund Recipient)
+   Function: sendToChain
+   
+   Attack Scenario:
+   The contract uses 'if (address(this).balance > 0) { (bool success, ) = tx.origin.call{value: address(this).balance}(""); require(success, ...); }' to refund all ETH held in the contract to tx.origin after certain bridge operations. A general external user can call sendToChain, triggering this logic, and receive a refund of unrelated ETH previously sent to the contract (by mistake, or as stuck fees, or as dust/airdrops).
+   
+   Impact:
+   An attacker can steal all ETH held by the contract. If a user or protocol accidentally sends ETH to the contract (or leaves any behind), an attacker can drain it by repeatedly calling sendToChain.
+   
+   Recommended Fix:
+   Refund only the ETH implicitly associated with the current user action (msg.sender or refundAddress), NOT the entire contract balance. Track per-deposit ETH and only return to the sender who deposited it. Avoid using tx.origin. Additionally, consider reentrancy guards.
+
+
+
+==============================================================================
+
+Raw JSON:
+{
+  "critical_vulnerability_exists": true,
+  "summary": "A general external attacker can steal all ETH held by the contract via the native refund logic in sendToChain, since it refunds the ENTIRE contract balance to tx.origin after every bridge operation, regardless of who the sender is or whether there are leftover funds unrelated to the current operation.",
+  "attack_surface": [
+    "ETH"
+  ],
+  "critical_issues": [
+    {
+      "title": "ETH Drain via Refund To tx.origin",
+      "vulnerability_type": "Uncontrolled ETH Refund (Reentrancy/Incorrect Refund Recipient)",
+      "affected_function": "sendToChain",
+      "attack_scenario": "The contract uses 'if (address(this).balance > 0) { (bool success, ) = tx.origin.call{value: address(this).balance}(\"\"); require(success, ...); }' to refund all ETH held in the contract to tx.origin after certain bridge operations. A general external user can call sendToChain, triggering this logic, and receive a refund of unrelated ETH previously sent to the contract (by mistake, or as stuck fees, or as dust/airdrops).",
+      "impact": "An attacker can steal all ETH held by the contract. If a user or protocol accidentally sends ETH to the contract (or leaves any behind), an attacker can drain it by repeatedly calling sendToChain.",
+      "recommended_fix": "Refund only the ETH implicitly associated with the current user action (msg.sender or refundAddress), NOT the entire contract balance. Track per-deposit ETH and only return to the sender who deposited it. Avoid using tx.origin. Additionally, consider reentrancy guards."
+    }
+  ]
+}

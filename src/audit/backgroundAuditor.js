@@ -22,7 +22,7 @@ export class BackgroundAuditor {
     
     this.isRunning = false;
     this.checkInterval = 5000; // Check every 5 seconds (faster with parallel processing)
-    this.auditDelay = 2000; // Reduced delay with parallel auditors
+    this.auditDelay = 1000; // 1 second delay between audits
     this.currentlyAuditing = [];
     this.rateLimitWaitTime = 60000; // Wait 60s when rate limited
     this.maxConcurrentAudits = apiKeys.length; // Audit as many as we have auditors

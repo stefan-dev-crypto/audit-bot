@@ -1,0 +1,52 @@
+Contract Address: 0x714bcaf508c6e2e405eaa379ba54804eed401add
+Source File: 1432_0x714bcaf508c6e2e405eaa379ba54804eed401add.sol
+Audit Date: 2026-01-14T23:46:23.341Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+A critical vulnerability allows general external attackers to steal arbitrary amounts of axlToken and realToken from the contract via the swap functions due to the lack of supply control or restrictions. The contract allows an attacker to swap to themselves for any amount, regardless of actual contract balances.
+
+Attack Surface: ERC20
+
+
+Critical Issues Found:
+
+1. ERC20 Token Theft via Unrestricted Swap
+   Type: Unrestricted External Call / Lack of Balance Check
+   Function: _swap (used in swapToReal, swapToAxl, swapToRealTo, swapToAxlTo)
+   
+   Attack Scenario:
+   An attacker can call swapToRealTo(amount, attacker) or swapToAxlTo(amount, attacker) to swap tokens to themselves. The contract does not verify if it has enough 'toToken' balance before attempting to transfer, but most ERC20 tokens do not revert on over-transfer, so if the contract has insufficient balance, the transfer simply sends whatever it has. However, if the contract DOES have balance, an attacker can 'swap' (with fake tokens or manipulated tokens), bypassing accounting and stealing all axlToken or realToken in the contract, by providing a non-conforming fromToken (a malicious token that always returns true for transferFrom but does not actually transfer tokens) and receiving legitimate tokens from the contract.
+   
+   Impact:
+   Theft of all axlToken and/or realToken held by the contract with a single call by a general external user.
+   
+   Recommended Fix:
+   Strictly verify that the fromToken in swap functions is always axlToken or realToken as expected. Additionally, check that IERC20(toToken).transfer(to, amount) is safe by verifying the contract balances and using safe ERC20 transfer methods, and consider using OpenZeppelin's SafeERC20 for all token transfers.
+
+
+
+==============================================================================
+
+Raw JSON:
+{
+  "critical_vulnerability_exists": true,
+  "summary": "A critical vulnerability allows general external attackers to steal arbitrary amounts of axlToken and realToken from the contract via the swap functions due to the lack of supply control or restrictions. The contract allows an attacker to swap to themselves for any amount, regardless of actual contract balances.",
+  "attack_surface": [
+    "ERC20"
+  ],
+  "critical_issues": [
+    {
+      "title": "ERC20 Token Theft via Unrestricted Swap",
+      "vulnerability_type": "Unrestricted External Call / Lack of Balance Check",
+      "affected_function": "_swap (used in swapToReal, swapToAxl, swapToRealTo, swapToAxlTo)",
+      "attack_scenario": "An attacker can call swapToRealTo(amount, attacker) or swapToAxlTo(amount, attacker) to swap tokens to themselves. The contract does not verify if it has enough 'toToken' balance before attempting to transfer, but most ERC20 tokens do not revert on over-transfer, so if the contract has insufficient balance, the transfer simply sends whatever it has. However, if the contract DOES have balance, an attacker can 'swap' (with fake tokens or manipulated tokens), bypassing accounting and stealing all axlToken or realToken in the contract, by providing a non-conforming fromToken (a malicious token that always returns true for transferFrom but does not actually transfer tokens) and receiving legitimate tokens from the contract.",
+      "impact": "Theft of all axlToken and/or realToken held by the contract with a single call by a general external user.",
+      "recommended_fix": "Strictly verify that the fromToken in swap functions is always axlToken or realToken as expected. Additionally, check that IERC20(toToken).transfer(to, amount) is safe by verifying the contract balances and using safe ERC20 transfer methods, and consider using OpenZeppelin's SafeERC20 for all token transfers."
+    }
+  ]
+}

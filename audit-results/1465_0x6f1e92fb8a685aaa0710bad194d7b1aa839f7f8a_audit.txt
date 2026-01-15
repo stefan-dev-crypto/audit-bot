@@ -1,0 +1,96 @@
+Contract Address: 0x6f1e92fb8a685aaa0710bad194d7b1aa839f7f8a
+Source File: 1465_0x6f1e92fb8a685aaa0710bad194d7b1aa839f7f8a.sol
+Audit Date: 2026-01-14T23:55:36.222Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The contract interface IERC20Metadata is misused to include staking pool logic, but lacks storage variables and state for _bst, _lockedUntil, LOCK_DURATION, etc. This means the deposit, withdraw, and addReward functions will not compile or function as intended. However, assuming intended deployment and correct inheritance, both deposit and withdraw are **not** properly protected against rounding errors and potential zero-division, in particular in the withdraw function. If sbstSupply is zero, withdraw() will revert due to a division by zero. More critically, a malicious user can deposit minimal tokens to mint all existing supply, then dilute other users’ share by subsequent actions. Most importantly: due to incorrect interface construction and critical missing state variables, it is not possible for users to withdraw their tokens in practice, leading to PERMANENT FUND LOCK.
+
+Attack Surface: ERC20
+
+
+Critical Issues Found:
+
+1. Permanent Fund Lock due to Missing/Incorrect State
+   Type: Permanent Fund Lock
+   Function: withdraw
+   
+   Attack Scenario:
+   Because variables like _bst, _lockedUntil, and LOCK_DURATION are undefined in the actual contract, no one can call withdraw successfully. If inherited incorrectly or implemented as shown, users will never be able to call withdraw to receive their underlying tokens, leading to a total, permanent loss of all deposited funds.
+   
+   Impact:
+   Permanent lock of all user-deposited ERC20 tokens: no withdrawals are possible for any user.
+   
+   Recommended Fix:
+   Implement deposit and withdraw in a concrete contract (not in an interface), and ensure all required storage variables (such as _bst, _lockedUntil, LOCK_DURATION) are properly defined and initialized.
+
+
+2. Division by Zero Causing Complete Lock
+   Type: Permanent Fund Lock
+   Function: withdraw
+   
+   Attack Scenario:
+   If the total supply (sbstSupply) is zero, withdraw will revert, permanently blocking all withdrawals for all users.
+   
+   Impact:
+   Permanent irreversible lock of all tokens in the pool.
+   
+   Recommended Fix:
+   Add require(sbstSupply > 0, ...) before division.
+
+
+3. Potential Theft from Share Calculation Manipulation
+   Type: ERC20 Pool Share Theft
+   Function: deposit/withdraw
+   
+   Attack Scenario:
+   The deposit function allows the first user to mint 1:1 with bst tokens, but subsequent deposits allow attackers to manipulate shares by depositing minimal tokens if pool balance or supply is low, potentially stealing outsized shares of rewards. Rounding/precision errors can also be exploited because of improper safe math usage.
+   
+   Impact:
+   Attacker can steal an unfair share of the pool, draining legitimate users’ rewards.
+   
+   Recommended Fix:
+   Use precise, safe share calculations (with adequate minimum deposit and withdrawal constraints, and proper accounting for rounding).
+
+
+
+==============================================================================
+
+Raw JSON:
+{
+  "critical_vulnerability_exists": true,
+  "summary": "The contract interface IERC20Metadata is misused to include staking pool logic, but lacks storage variables and state for _bst, _lockedUntil, LOCK_DURATION, etc. This means the deposit, withdraw, and addReward functions will not compile or function as intended. However, assuming intended deployment and correct inheritance, both deposit and withdraw are **not** properly protected against rounding errors and potential zero-division, in particular in the withdraw function. If sbstSupply is zero, withdraw() will revert due to a division by zero. More critically, a malicious user can deposit minimal tokens to mint all existing supply, then dilute other users’ share by subsequent actions. Most importantly: due to incorrect interface construction and critical missing state variables, it is not possible for users to withdraw their tokens in practice, leading to PERMANENT FUND LOCK.",
+  "attack_surface": [
+    "ERC20"
+  ],
+  "critical_issues": [
+    {
+      "title": "Permanent Fund Lock due to Missing/Incorrect State",
+      "vulnerability_type": "Permanent Fund Lock",
+      "affected_function": "withdraw",
+      "attack_scenario": "Because variables like _bst, _lockedUntil, and LOCK_DURATION are undefined in the actual contract, no one can call withdraw successfully. If inherited incorrectly or implemented as shown, users will never be able to call withdraw to receive their underlying tokens, leading to a total, permanent loss of all deposited funds.",
+      "impact": "Permanent lock of all user-deposited ERC20 tokens: no withdrawals are possible for any user.",
+      "recommended_fix": "Implement deposit and withdraw in a concrete contract (not in an interface), and ensure all required storage variables (such as _bst, _lockedUntil, LOCK_DURATION) are properly defined and initialized."
+    },
+    {
+      "title": "Division by Zero Causing Complete Lock",
+      "vulnerability_type": "Permanent Fund Lock",
+      "affected_function": "withdraw",
+      "attack_scenario": "If the total supply (sbstSupply) is zero, withdraw will revert, permanently blocking all withdrawals for all users.",
+      "impact": "Permanent irreversible lock of all tokens in the pool.",
+      "recommended_fix": "Add require(sbstSupply > 0, ...) before division."
+    },
+    {
+      "title": "Potential Theft from Share Calculation Manipulation",
+      "vulnerability_type": "ERC20 Pool Share Theft",
+      "affected_function": "deposit/withdraw",
+      "attack_scenario": "The deposit function allows the first user to mint 1:1 with bst tokens, but subsequent deposits allow attackers to manipulate shares by depositing minimal tokens if pool balance or supply is low, potentially stealing outsized shares of rewards. Rounding/precision errors can also be exploited because of improper safe math usage.",
+      "impact": "Attacker can steal an unfair share of the pool, draining legitimate users’ rewards.",
+      "recommended_fix": "Use precise, safe share calculations (with adequate minimum deposit and withdrawal constraints, and proper accounting for rounding)."
+    }
+  ]
+}

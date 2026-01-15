@@ -27,7 +27,7 @@ export class BackgroundProcessor {
     
     this.isRunning = false;
     this.checkInterval = SETTINGS.FETCHER_CHECK_INTERVAL;
-    this.processDelay = 2000; // Reduced delay since we have parallel auditors
+    this.processDelay = 1000; // 1 second delay between contracts
     this.currentlyProcessing = [];
     this.contractIndex = 1;
     this.maxConcurrentProcessing = apiKeys.length; // Process as many as we have auditors
