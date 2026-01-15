@@ -38,31 +38,25 @@ A vulnerability is CRITICAL ONLY IF it allows at least one of the following:
 ==================== ATTACKER MODEL ====================
 - Attacker is a normal external user
 - Attacker has no special permissions
-- Attacker does NOT control the owner, admin, or governance
-- Attacker can use flash loans, MEV, and composability
 - Attacker can deploy malicious contracts
+- Attacker can use flash loans, MEV, and composability
 
-==================== ALLOWED VULNERABILITY NAMES ====================
+==================== VULNERABILITY CLASSIFICATION ====================
 You MUST classify vulnerabilities using ONLY ONE OR MORE
 of the following names:
 
 Access Control
 Lack of Access Control
 Missing Access Control
-Broken Access Control
 Unprotected Function
 Unauthorized Mint
 Unauthorized Burn
 Unauthorized Transfer
 Privilege Escalation
-Insecure Initialization
-Reinitialization Attack
-Uninitialized Contract
 
 Reentrancy
 Cross-Function Reentrancy
 Read-Only Reentrancy
-Reentrancy via Callback
 External Call Before State Update
 
 Logic Flaw
@@ -75,14 +69,12 @@ Incorrect Burn Logic
 Incorrect Mint Logic
 Double Withdraw
 Over-Withdrawal
-State Desynchronization
 
 Price Manipulation
 Oracle Manipulation
 FlashLoan Price Oracle Manipulation
 TWAP Manipulation
 Share Price Manipulation
-LP Price Manipulation
 
 Unsafe Math
 Overflow
@@ -90,7 +82,6 @@ Underflow
 Precision Loss
 Rounding Error
 Division by Zero
-Unsafe Cast
 
 Invalid Signature Verification
 Signature Replay
@@ -104,7 +95,6 @@ User-Controlled Call Data
 
 Bypassed Insolvency Check
 Missing Solvency Check
-Liquidation Logic Flaw
 
 Misconfiguration
 Wrong Address Configuration
@@ -114,27 +104,32 @@ Rug Pull
 Hidden Backdoor
 Honeypot
 
-Unsafe ETH Transfer
-Locked ETH
-Fallback Function Abuse
-
 DO NOT invent new vulnerability names.
 DO NOT use synonyms.
-If none apply, report no critical vulnerability.
 
 ==================== EXPLOITABILITY FILTER ====================
 ONLY report an issue if:
-- A realistic attack path exists
-- The attack can be executed fully on-chain
-- The attacker gains or permanently locks funds
+- A concrete exploit path exists
+- Exploit is feasible on-chain
+- Funds are stolen or permanently locked
 
 DO NOT report:
-- Hypothetical risks
+- Hypothetical issues
 - Best practices
 - Admin misuse
-- Centralization concerns
-- Gas optimizations
+- Centralization risks
 - Low or medium severity issues
+
+==================== EXTRACTION RULES ====================
+- ALWAYS extract the Solidity contract name
+- ALWAYS extract the exact function name(s)
+- ALWAYS extract line numbers from the provided source
+- Line numbers MUST refer to the exact lines in the input code
+- If vulnerability spans multiple lines, return a range: "start-end"
+- If vulnerability spans multiple locations, return an array of ranges
+- If vulnerability is in constructor, use "constructor"
+- If in fallback or receive, use "fallback" or "receive"
+- If exact line cannot be determined, use "unknown" (avoid if possible)
 
 ==================== OUTPUT RULE ====================
 Return STRICT JSON ONLY.
@@ -145,11 +140,6 @@ No explanations outside JSON.`;
 Determine whether a GENERAL EXTERNAL ATTACKER
 can steal or permanently lock ETH or tokens held by the contract.
 
-For each reported vulnerability:
-- Explain the concrete exploit path
-- Identify the vulnerable function
-- Describe how funds are lost or locked
-
 ==================== REQUIRED JSON FORMAT ====================
 {
   "critical_vulnerability_exists": boolean,
@@ -157,9 +147,11 @@ For each reported vulnerability:
   "attack_surface": ["ETH", "ERC20", "ERC721", "ERC1155"],
   "critical_issues": [
     {
+      "contract_name": string,
+      "function_name": string | string[],
+      "line_number": string | string[],
       "title": string,
       "vulnerability_type": string,
-      "affected_function": string,
       "attack_scenario": string,
       "impact": string,
       "recommended_fix": string
@@ -167,12 +159,17 @@ For each reported vulnerability:
   ]
 }
 
-If NO critical fund-loss vulnerability exists:
-- Set "critical_vulnerability_exists" to false
-- Use an empty array for "critical_issues"
-- Clearly explain why in "summary"
+==================== IMPORTANT RULES ====================
+- contract_name MUST match the Solidity contract definition
+- function_name MUST match the Solidity function signature name
+- line_number MUST reference the exact line(s) in the source
+- Do NOT guess names or line numbers
+- If NO critical fund-loss vulnerability exists:
+  - Set "critical_vulnerability_exists" to false
+  - Use empty "critical_issues" array
+  - Explain clearly in "summary"
 
-==================== CONTRACT SOURCE CODE ====================
+==================== CONTRACT SOURCE CODE (WITH LINE NUMBERS) ====================
 <PASTE SOLIDITY CODE HERE>`;
     
     this.initialize();
