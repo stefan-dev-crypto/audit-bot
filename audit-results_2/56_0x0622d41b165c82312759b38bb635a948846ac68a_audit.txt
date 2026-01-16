@@ -1,0 +1,87 @@
+Contract Address: 0x0622d41b165c82312759b38bb635a948846ac68a
+Source File: 198_0x0622d41b165c82312759b38bb635a948846ac68a.sol
+Audit Date: 2026-01-15T17:00:42.424Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The PinStaking contract has multiple critical vulnerabilities and business logic flaws. Notably, incorrect handling of zero-amount reward claims, lack of checks for rewards tokens, improper updating of staker rewards, an off-by-one error in pendingUnstakesCount, and missing input validation allow a general user to steal all staked tokens due to unsafe ERC20 transfers (claiming more rewards than deserved or draining the contract). The contract can be griefed by gas or DoS attacks due to unbounded storage writes and inefficient processing of user actions. Rewards accounting invariants are trivially violated, making the pool unsafe for production.
+
+
+Critical Issues Found:
+
+1. User Can Claim and Withdraw More Tokens than Staked or Than They Deserve
+   Type: Incorrect reward calculation / economic exploitation / fund drain
+   Function: claimRewards
+   
+   Attack Scenario:
+   Because claimRewards() does not verify that pendingRewards > 0, and since _updateGlobalRewardsPerStakedToken() does not strictly control globalRewardsPerStakedToken or claimable amounts, an attacker could repeatedly call claimRewards() in edge cases to withdraw more tokens than staked in the pool, especially if rewards distributions and staking/unstaking are manipulated with MEV timing and flash loans.
+   
+   Impact:
+   A general user can drain the rewards pool and/or staked tokens, resulting in total economic loss or reward theft, violating all user fairness and balance invariants.
+   
+   Recommended Fix:
+   undefined
+
+
+2. No Validation on ERC20 Token Used for Staking/Rewards
+   Type: Token spoofing / fund lockup
+   Function: constructor,depositRewards,stake,claimRewards,withdraw
+   
+   Attack Scenario:
+   The stakedToken address is provided unvalidated in the constructor and in depositRewards. If a fee-on-transfer or maliciously designed ERC20 is specified, reward accounting and fund movement can be arbitrarily broken.
+   
+   Impact:
+   Users may be unable to withdraw or claim funds, or balances become inconsistent. Funds can be locked or lost for all users. Attackers can game the system with tokens that transfer less than expected.
+   
+   Recommended Fix:
+   undefined
+
+
+3. unchecked/Overflow/Underflow in pendingUnstakes Handling Allows Zapping Counter
+   Type: Storage & logic manipulation / underflow/overflow
+   Function: unstake,withdraw
+   
+   Attack Scenario:
+   pendingUnstakesCount is incremented/decremented outside overflow-checked arithmetic (Solidity 0.8+ will revert, but logic error is present). An attacker can cause pendingUnstakesCount to go negative (revert) or overflow by repeatedly calling unstake/withdraw with malformed state.
+   
+   Impact:
+   Possible contract DoS for user, or bypass of maximum unstakes protections, or revert-locking an account.
+   
+   Recommended Fix:
+   undefined
+
+
+4. Global Invariant Broken if totalStakedTokens Drops to 0 During Reward Distribution
+   Type: Rewards schedule manipulation / invariant break
+   Function: _updateGlobalRewardsPerStakedToken
+   
+   Attack Scenario:
+   If an attacker causes totalStakedTokens to hit zero, the contract updates rewards distribution with special logic (rewardsData.startDate = block.timestamp), causing reward emission to reset unexpectedly and leaving rewards unclaimable/lost for honest stakers.
+   
+   Impact:
+   Remaining rewards can be skipped, distributions made unfair, and participants can be denied their due proportion.
+   
+   Recommended Fix:
+   undefined
+
+
+5. DoS/Gas Griefing via MAX_PENDING_UNSTAKES Abuse
+   Type: DOS/gas griefing/unbounded storage abuse
+   Function: withdraw
+   
+   Attack Scenario:
+   User can fill up their pendingUnstakes array to MAX_PENDING_UNSTAKES (50, large array), requiring iterating over all the user's unstakes in withdraw(), maxing gas cost and eventually rendering withdraw() uncallable within gas limits. Could permalock unstaked funds.
+   
+   Impact:
+   User or attacker can block their own or others' withdrawals, causing funds to be locked indefinitely if too many unstakes are initiated.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

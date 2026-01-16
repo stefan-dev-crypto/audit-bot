@@ -1,0 +1,34 @@
+Contract Address: 0xe6354ed5bc4b393a5aad09f21c46e101e692d447
+Source File: 21_0xe6354ed5bc4b393a5aad09f21c46e101e692d447.sol
+Audit Date: 2026-01-15T18:05:20.153Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The contract has a critical accounting bug in the deposit logic due to improper pool and totalSupply calculations, allowing users to mint more shares than deserved on non-initial deposits. This is a severe business logic flaw exploitable by any user. Additionally, the lack of slippage protection in withdrawals after lending pool rebalances exposes the protocol to manipulation and loss of funds for existing users. These issues allow for both economic extraction attacks and invariant breaks by general users, with severe real-world impact.
+
+
+Critical Issues Found:
+
+1. Incorrect Calculation of User Shares on Deposit Enables Infinite Minting Attack
+   Type: Incorrect share accounting / Economic extraction
+   Function: deposit
+   
+   Attack Scenario:
+   1. Attacker deposits a small amount when the pool is empty, getting shares equal to their deposit.
+2. Other users deposit, pool yield grows via lending.
+3. Attacker triggers rebalance or lending protocol yield so pool token balance increases (e.g., via Aave or Compound interest accrual on protocol funds).
+4. Attacker initiates a new deposit. In `deposit()`, the number of new shares is calculated as: shares = (_amount * _totalSupply) / pool (with `pool` being set BEFORE receiving new deposit's underlying tokens via transferFrom). This allows the attacker to receive a disproportionately large number of shares relative to the true net pool balance after their deposit, leading to an accounting break and fair-value extraction at the expense of all other users.
+   
+   Impact:
+   Attacker can extract excessive value from the pool, draining protocol liquidity and effectively stealing from other users. This is a critical business logic/invariant violation with catastrophic financial impact. Users cannot trust the share-to-asset relationship.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

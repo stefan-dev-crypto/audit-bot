@@ -1,0 +1,59 @@
+Contract Address: 0x5954ab967bc958940b7eb73ee84797dc8a2afbb9
+Source File: 127_0x5954ab967bc958940b7eb73ee84797dc8a2afbb9.sol
+Audit Date: 2026-01-15T15:30:06.111Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The ApeCoinStaking contract exposes several critical issues allowing general users to exploit or break invariants, including reentrancy in ERC20 transfer hooks, partial withdrawal/fund accounting flaws, and possible front-running/reward sniping due to updatePool logic. There are also missing input validations and insufficient protection of reward distribution invariants. None of the vulnerabilities require privileged access.
+
+
+Critical Issues Found:
+
+1. Reentrancy via External ERC20 Transfers
+   Type: Reentrancy
+   Function: depositApeCoin,withdrawApeCoin,_depositNft,_withdrawNft,_depositPairNft,_withdrawPairNft,_claim,_claimNft
+   
+   Attack Scenario:
+   If the 'apeCoin' ERC20 token is a malicious or ERC777-compatible token, 'transfer' and 'transferFrom' calls can result in reentrant calls to the contract, as they are placed after critical state updates in functions like 'depositApeCoin', 'withdrawApeCoin', '_depositNft', '_withdrawNft', and others. An attacker can use a reentrant contract to make nested deposits or withdrawals before or after state changes, breaking reward/accounting invariants.
+   
+   Impact:
+   Loss of fund accounting, double-withdraws, draining contract funds, or inflating rewards.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Incorrect TotalStaked and Per-User Staked Accounting after Partial Withdrawals
+   Type: Accounting/Balance Manipulation
+   Function: _withdraw
+   
+   Attack Scenario:
+   When a user withdraws part of their staked amount via '_withdraw', the position's 'rewardsDebt' is decreased linearly: '_position.rewardsDebt -= (_amount * pool.accumulatedRewardsPerShare).toInt256();'. However, if a user stakes at different times (with varying 'accumulatedRewardsPerShare'), this can let them arbitrage rewards by, e.g., staking then partially withdrawing after rewards increase. This breaks the per-share accounting invariant and can inflate claimable rewards beyond what's correct.
+   
+   Impact:
+   Rewards overdistribution and contract's financial loss.
+   
+   Recommended Fix:
+   undefined
+
+
+3. Lack of Reentrancy Protection in Withdraw, Claim, and Deposit Functions
+   Type: Reentrancy
+   Function: depositApeCoin,withdrawApeCoin,_claim,_depositNft,_withdrawNft
+   
+   Attack Scenario:
+   Multiple user-facing functions (e.g. depositApeCoin, withdrawApeCoin, _depositNft, _withdrawNft, _claim, etc.) perform critical state changes and then transfer ERC20 tokens. Without 'nonReentrant' guards, an attacker can re-enter these functions using a malicious ERC20 to manipulate state, possibly draining or inflating funds.
+   
+   Impact:
+   Loss of contract funds or rewards theft.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

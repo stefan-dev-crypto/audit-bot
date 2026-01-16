@@ -1,0 +1,45 @@
+Contract Address: 0x73c0ca080a6a22d54f0f36f057aa0b4057ac18de
+Source File: 143_0x73c0ca080a6a22d54f0f36f057aa0b4057ac18de.sol
+Audit Date: 2026-01-15T15:57:55.169Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The OFTLockboxBridge contract exposes a critical business logic flaw whereby unprivileged users can mint unlimited ERC20 tokens by exploiting the _credit() function via cross-chain OFT receive, leading to a complete breakdown of the token's value and trust. There are also direct critical vulnerabilities in native asset draining and unlimited minting if the contract is configured with permissive peers and utilized in a real value bridge. Controls over mint, burn, and transfer of real tokens are absent during credit/receiving operations, enabling attackers to extract value or disrupt cross-chain token accounting.
+
+
+Critical Issues Found:
+
+1. Unlimited Token Minting via _credit() on Remote Receive
+   Type: Broken Mint/Burn Invariant (Business Logic)
+   Function: _credit,_lzReceive
+   
+   Attack Scenario:
+   A user sends a cross-chain OFT send from any chain, causing _lzReceive() on the destination chain, which calls _credit(to, amount, srcEid). If innerToken.balanceOf(address(this)) < amount, the contract simply _mints the requested amount of ERC20 tokens directly to the user. There is no cap nor external accounting on allowed minting, so any user can repeatedly send small or zero amounts from another chain and mint arbitrary tokens. Merchants, exchanges, or bridges trusting the minted tokens suffer catastrophic loss. This is especially critical if innerToken is a wrapper of a real/collateralized underlying asset.
+   
+   Impact:
+   Loss of total supply control; infinite inflation of ERC20 tokens; catastrophic value collapse and exploitability of the bridge. Untrusted tokens with no supply cap; full loss of trust in cross-chain bridge accounting.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Native (Underlying) Token Drain via Exchange() Re-entry
+   Type: Reentrancy; Native Asset Drain
+   Function: exchange
+   
+   Attack Scenario:
+   The exchange() function calls _debitBurn (which burns the ERC20 tokens from user) and then transfers innerToken to msg.sender. If innerToken is a malicious token (or in any case where transfer calls external code), this native asset transfer could allow reentry on exchange(), draining the contract by repeatedly burning tokens for underlying. There is no reentrancy guard. If innerToken is valuable (e.g. a real token), funds can be drained by abusing ERC777 or malicious innerToken hooks.
+   
+   Impact:
+   Potential full theft of all innerToken held in the bridge via reentrancy attack, especially if using tokens with hooks (ERC777, malicious ERC20, etc). Loss of collateral and asset backing.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

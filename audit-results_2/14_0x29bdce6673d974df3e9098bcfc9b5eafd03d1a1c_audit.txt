@@ -1,0 +1,59 @@
+Contract Address: 0x29bdce6673d974df3e9098bcfc9b5eafd03d1a1c
+Source File: 51_0x29bdce6673d974df3e9098bcfc9b5eafd03d1a1c.sol
+Audit Date: 2026-01-15T14:23:34.816Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The contract exposes multiple critical vulnerabilities and business logic flaws to unprivileged users. Specifically, there are potential loss-of-funds scenarios, broken invariants, and economically irrational behaviors caused by poor accounting and logic errors in the mint/burn/redeem flows, flash-loan architecture, and token transfer accounting. Multiple issues could result in protocol insolvency or unfair value extraction by users.
+
+
+Critical Issues Found:
+
+1. Redeem Function Allows Double Redemption and Direct Fund Extraction
+   Type: Broken Accounting / Fund Theft
+   Function: redeem / _redeem
+   
+   Attack Scenario:
+   An attacker can call redeem() and, due to the function first burning all FT tokens held by the contract (likely 0), but then transferring FT from the caller, this changes the FT totalSupply used in the proportion calculation. Since FT supply may go to zero or near-zero (edge case), this enables full extraction of all debtToken balances. Attacker can manipulate the FT totalSupply at critical moments to redeem far more debtToken than fair.
+   
+   Impact:
+   Attacker can extract all residual debtToken in the contract, resulting in total loss of protocol funds backing.
+   
+   Recommended Fix:
+   undefined
+
+
+2. FT/XT Token Infinite Mint/Burn Loop with No Debt Change
+   Type: Business Logic/Economic Attack
+   Function: mint,burn
+   
+   Attack Scenario:
+   Any user can mint FT/XT by depositing debtToken, then immediately burn FT/XT and redeem the same amount of debtToken. The contract allows 1:1 mint/burn with no accounting for interest or time for open-maturity periods. This enables users to leverage batch arbitrage, potential MEV, or temporarily manipulate FT/XT totalSupply for subsequent attacks (such as via redeem)
+   
+   Impact:
+   May allow manipulation of FT/XT accounting, griefing or draining of protocol via combinations with other attacks (see above). Economic irrationality and potential DoS on protocol state.
+   
+   Recommended Fix:
+   undefined
+
+
+3. LeverageByXt Flash Loan Callback Enables Arbitrary Execution, Reentrancy, or Collateral Drain
+   Type: Flash Loan Callback Arbitrary Execution/Economic Attack
+   Function: leverageByXt,_leverageByXt
+   
+   Attack Scenario:
+   leverageByXt calls into any external contract via the IFlashLoanReceiver interface (controlled by user). Attacker can use callback to reenter contract functions or perform actions that manipulate state mid-execution: e.g., transfer/withdraw protocol tokens, manipulate XT/FT supply before burn/mint, etc. Callback guarantees no controlled accounting on collateral state.
+   
+   Impact:
+   Collaterals may be drained, states may be manipulated for broken pricing, or privileged actions may become accessible via flashloans and contract composability.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

@@ -1,0 +1,59 @@
+Contract Address: 0xee6a649aa3766bd117e12c161726b693a1b2ee20
+Source File: 103_0xee6a649aa3766bd117e12c161726b693a1b2ee20.sol
+Audit Date: 2026-01-15T14:52:27.991Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The contract contains critical vulnerabilities and business logic flaws. The most severe is that stake() increases the user's votingPower before verifying that transferFrom() for the staked token succeeded, allowing users to mint voting power by staking without sufficient tokens (if the token returns false or reverts). Also, there is a reentrancy vulnerability in claim() due to the external safeTransfer() before updating state, leading to DoS or multi-claim risks with malicious ERC20 tokens. Further, the code allows undelegated votingPower to be stolen from the zero address and a DoS on the voting system via large balance manipulation on votingPower[address(0)] initialized to max. Other flaws include a lack of checks on array bounds (unchecked stakeID), which could lead to DoS or data corruption if used improperly.
+
+
+Critical Issues Found:
+
+1. Incorrect Voting Power Update Before Token Transfer Success
+   Type: Business Logic/Economic Attack
+   Function: stake
+   
+   Attack Scenario:
+   The stake() function adds _amount to votingPower[msg.sender] and totalStaked BEFORE ensuring that stakingToken.safeTransferFrom() succeeds. A user with a malicious or non-standard ERC20 token (that returns false or reverts after transfer) can repeatedly call stake() with no actual token deposit, rapidly inflating their voting power and possibly breaking downstream invariants.
+   
+   Impact:
+   Attacker can mint arbitrary voting power and inflate totalStaked, enabling governance/weight attacks, inflation of historical snapshots, and further economic attacks where votingPower is valued.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Reentrancy Bug in claim()
+   Type: Reentrancy
+   Function: claim
+   
+   Attack Scenario:
+   The claim() function calls safeTransfer() to the user before marking the stake as claimed and before decrementing totalStaked. A malicious ERC20 token can use reentrancy to call claim() again, either for the same stake or multiple times, extracting more tokens or interfering with contract state.
+   
+   Impact:
+   Fund loss via repeated claims or disruption of staking/unstaking process.
+   
+   Recommended Fix:
+   undefined
+
+
+3. Unchecked stakeID Array Access
+   Type: Array Out-of-Bounds / DoS Attack
+   Function: claim,unlock,delegate,undelegate
+   
+   Attack Scenario:
+   Functions like claim, unlock, delegate, and undelegate allow users to supply _stakeID without checking that _stakeID < stakes[msg.sender].length, only that a nonzero staketime exists. An attacker can pass in very large values, leading to gas lockup, failed transactions, or storage corruption if staketime is left uninitialized.
+   
+   Impact:
+   Possible DoS, corruption, or wasted gas. If an attacker can exploit lack of index bounds in combination with delegate/undelegate logic, could steal or damage data.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

@@ -1,0 +1,59 @@
+Contract Address: 0x0e3efd5be54cc0f4c64e0d186b0af4b7f2a0e95f
+Source File: 193_0x0e3efd5be54cc0f4c64e0d186b0af4b7f2a0e95f.sol
+Audit Date: 2026-01-15T16:55:18.932Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The IDStaking contract exposes several critical vulnerabilities and business logic flaws that can be exploited by any user. There are no reentrancy protections, enabling reentrancy attacks via compatible ERC20 tokens, particularly in user-controlled functions. TVL accounting for user-funded stakes (stakeUsers/unstakeUsers) can be manipulated by underflows/overflows, especially when unstaking zeroed-out positions, and can cause incorrect TVL values. There are also race conditions and DoS risks in certain batch unstaking operations. No limits are checked on migration between rounds enabling repeated migration of identical funds (if roles are not set properly), which can break accounting. Error conditions lack granular checks and some storage patterns (such as xStakes) can be abused for griefing. There are critical fund-draining and fund lockup scenarios.
+
+
+Critical Issues Found:
+
+1. No Reentrancy Guard on External Token Transfers - Reentrancy Attack Possibility
+   Type: Reentrancy
+   Function: unstake,unstakeUsers,migrateStake,_unstake,stakeUsers
+   
+   Attack Scenario:
+   If the token implements a hook or attacker deploys a malicious ERC20 that performs malicious reentrancy in token.transferFrom/transfer, the attacker can re-enter unstake, unstakeUsers, or migrateStake. In each reentrant enter they can re-acquire the same funds or manipulate storage before state changes finalize, producing double-withdrawals or broken accounting.
+   
+   Impact:
+   Potential for total loss of user/user group funds staked in the contract. Accounting invariants (TVL, mapping balances) break.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Underflow/Overflow of TVL via Unchecked TVL Manipulation
+   Type: Integer Underflow/Overflow / Accounting Breakage
+   Function: unstake,unstakeUsers,stakeUsers
+   
+   Attack Scenario:
+   A user using unstakeUsers or unstake can cause rounds[roundId].tvl underflow if a previous underflow happened or if the round has zero TVL. Multiple batched withdrawals by different users in xStake could lead to TVL being reduced below zero, or TVL being inflated arbitrarily by replaying stake functions if internal checks fail.
+   
+   Impact:
+   System-wide accounting broken, TVL reflects incorrect value. If TVL is used by downstream logic (rewards, stats, etc.) this can cause arbitrary exploit or DoS of incentive and reward systems. Potential fund loss or locking.
+   
+   Recommended Fix:
+   undefined
+
+
+3. Lack of Input Validation and Batch DoS via stakeUsers and unstakeUsers
+   Type: Bad Input Handling / Griefing/DoS
+   Function: stakeUsers,unstakeUsers
+   
+   Attack Scenario:
+   A user can supply users with zero xStake in unstakeUsers, causing unnecessary computation/gas or grief. Since xStake slots are never deleted, large arrays can be repeatedly called, consuming gas. In stakeUsers, token.transferFrom is called after emitting events for each user, so revert on transferFrom will revert all events, leading to unnecessary log pollution and high revert costs.
+   
+   Impact:
+   Allows griefing of the system, unnecessary gas burn, and potential DoS with large batches.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

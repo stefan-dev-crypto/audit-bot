@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import OpenAI from 'openai';
 import { sendVulnerabilityAlert } from '../notifications/telegram.js';
+import { SETTINGS } from '../config/settings.js';
 
 /**
  * OpenAI Auditor
@@ -22,61 +23,56 @@ export class OpenAIAuditor {
     this.telegramConfig = telegramConfig;
     
     this.systemPrompt = `You are a senior Solidity smart contract security auditor.
-    You are given a Solidity contract source code and you need to audit it for critical vulnerabilities and critical bussiness logic flaws.
-Attacker model:
-- The attacker is a general, permissionless user
-- The attacker has NO admin, owner, governance, or privileged roles
-- The attacker cannot modify contract code or upgrade contracts
-- The attacker can only interact via public/external functions
-- The attacker may use multiple accounts, contracts, flash loans, and MEV
-- The attacker is fully rational and adversarial
+Your task is to identify ONLY the following vulnerability class:
 
-Audit constraints:
-- EXCLUDE all issues that require admin, owner, or privileged abuse
-- EXCLUDE governance, upgrade, or centralized control risks
-- Focus ONLY on what an unprivileged user can exploit
+"Arbitrary External Call via user-controlled target and/or calldata that allows draining all funds held by the contract."
 
-Your goal:
-- Identify security and business logic flaws exploitable by any user
-- Focus on economic attacks, invariant breaks, and misuse of public APIs
-- Classify issues by severity and explain real-world impact
-- Provide concrete attack paths and mitigations
+You must:
+- Focus exclusively on external calls (call, delegatecall, staticcall) where:
+  - The call target is user-controlled OR
+  - The calldata is user-controlled OR
+  - Both are user-controlled
+- Determine whether such calls can be abused to transfer ERC20 / ETH balances held by the contract
+- Consider approval + call combinations as fund-draining vectors
+- Assume a malicious caller with full control over function inputs
+
+You must NOT:
+- Report any other vulnerability classes (reentrancy, oracle manipulation, math errors, etc.)
+- Report theoretical issues unless fund draining is realistically possible
+- Suggest general best practices unless directly relevant to this vulnerability
 
 Output must be precise, technical, and audit-grade.
 
     You need to return a JSON object with the following fields:
     - critical_vulnerability_exists: boolean
-    - critical_bussiness_logic_flaws_exists: boolean
     - summary: string
     - critical_issues: array of objects
-    - critical_bussiness_logic_flaws: array of objects
     - critical_issues_count: number
-    - critical_bussiness_logic_flaws_count: number
 
 ==================== OUTPUT RULE ====================
 Return STRICT JSON ONLY.
 No explanations outside JSON.`;
 
-    this.userPrompt = `Audit the following Solidity contract assuming ONLY a general user attacker.
+    this.userPrompt = `Audit the following Solidity contract.
 
-Assumptions:
-- The attacker has no special permissions
-- The attacker interacts only via public/external functions
-- The attacker may use flash loans, MEV, reentrancy, batching, and composability
-- The attacker can deploy helper contracts
+    Focus ONLY on detecting the following vulnerability:
 
-Focus on:
-- Business logic flaws exploitable by users
-- Economic attacks and value extraction
-- Broken invariants reachable via public functions
-- Oracle, pricing, or leverage manipulation by users
-- Reentrancy, DoS, and gas griefing by users
-- Fund loss, fund lockup, or unfair redistribution    
+"Arbitrary External Call via user-controlled router / target / calldata that enables draining all funds held by the contract."
+
+Ignore all other vulnerability types.
+
+For any issue found:
+- Identify the exact function and code snippet
+- Explain how user input controls the external call
+- Explain how contract-held funds (ERC20 or ETH) can be drained
+- State clearly whether the issue is exploitable in practice
+
+If no such vulnerability exists, explicitly state:
+"NO Arbitrary External Call fund-drain vulnerability found."
 
 ==================== REQUIRED JSON FORMAT ====================
 {
   "critical_vulnerability_exists": boolean,
-  "bussiness_logic_flaws_exists": boolean,
   "summary": string,
   "critical_issues": array of objects with the following fields:
     - title: string
@@ -86,15 +82,7 @@ Focus on:
     - affected_contract: string
     - affected_function: string | string[]
     - affected_line_number: string | string[]
-  "critical_bussiness_logic_flaws": array of objects with the following fields:
-    - title: string
-    - bussiness_logic_flaw_type: string
-    - impact: string
-    - affected_contract: string
-    - affected_function: string | string[]
-    - affected_line_number: string
   "critical_issues_count": number,
-  "critical_bussiness_logic_flaws_count": number
 }
 
 ==================== CONTRACT SOURCE CODE ====================
@@ -355,6 +343,31 @@ Focus on:
   }
   
   /**
+   * Check if contract source matches the pre-audit regex pattern for Arbitrary External Call vulnerability
+   * @param {string} contractSource - Contract source code
+   * @returns {boolean} True if pattern matches, false otherwise
+   */
+  checkPreAuditPattern(contractSource) {
+    if (!SETTINGS.ENABLE_PRE_AUDIT_REGEX_CHECK) {
+      // If pre-audit check is disabled, always return true (allow audit)
+      return true;
+    }
+    
+    try {
+      // Create a new regex instance each time to avoid state issues with global flag
+      const pattern = new RegExp(SETTINGS.PRE_AUDIT_REGEX_PATTERN, 'g');
+      const matches = pattern.test(contractSource);
+      // Reset lastIndex to avoid state issues
+      pattern.lastIndex = 0;
+      return matches;
+    } catch (error) {
+      console.error(`   ⚠️  Error checking pre-audit pattern: ${error.message}`);
+      // On error, allow audit to proceed (fail open)
+      return true;
+    }
+  }
+  
+  /**
    * Audit a contract source file using OpenAI
    * @param {string} contractAddress - Contract address
    * @param {string} sourceFilePath - Path to the contract source file
@@ -381,6 +394,20 @@ Focus on:
       
       // Read contract source (don't upload file - .sol is not supported)
       const contractSource = fs.readFileSync(sourceFilePath, "utf8");
+      
+      // Pre-audit regex check: Only audit if pattern matches (when enabled)
+      if (SETTINGS.ENABLE_PRE_AUDIT_REGEX_CHECK) {
+        const patternMatches = this.checkPreAuditPattern(contractSource);
+        if (!patternMatches) {
+          console.log(`   ⏭️  ${contractAddress}: Pre-audit regex check failed - skipping audit (pattern not found)`);
+          return { 
+            skipped: true, 
+            address: contractAddress, 
+            reason: 'pre_audit_regex_no_match' 
+          };
+        }
+        console.log(`   ✅ ${contractAddress}: Pre-audit regex check passed - pattern found`);
+      }
       
       const response = await this.client.responses.create({
         model: "gpt-4.1",

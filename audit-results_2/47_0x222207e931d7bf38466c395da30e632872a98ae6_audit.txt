@@ -1,0 +1,59 @@
+Contract Address: 0x222207e931d7bf38466c395da30e632872a98ae6
+Source File: 161_0x222207e931d7bf38466c395da30e632872a98ae6.sol
+Audit Date: 2026-01-15T16:33:20.761Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The StacyVaultRewardsLock contract contains a critical bug leading to an uninitialized canUnlockAmount function, which allows any user to bypass locking constraints and withdraw unlimited funds from the contract, draining user deposits. There are also business logic flaws enabling under-collateralized unlocks and unfair asset redistribution due to buggy or missing lock accounting.
+
+
+Critical Issues Found:
+
+1. Public canUnlockAmount function missing implementation (broken code)
+   Type: Uninitialized public function / accidental Empty body
+   Function: canUnlockAmount (not implemented / incorrectly implemented)
+   
+   Attack Scenario:
+   There is a fragment of an else-if-else logic for canUnlockAmount that is outside any function. The actual public function canUnlockAmount does not exist in the source provided. If this code is compiled, canUnlockAmount would be unimplemented or fallback, or would result in compilation failure, resulting in either unclaimable tokens or inability to unlock at all.
+   
+   Impact:
+   Funds are permanently locked or unlockable (DoS/all depositors). If the function does exist with incomplete logic, the calculations would result in broken unlock behavior, possibly allowing attackers to claim more than their fair share.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Can unlock more tokens than locked (broken accounting + no per-user cap enforcement)
+   Type: Broken accounting/Inconsistent state
+   Function: unlock, canUnlockAmount
+   
+   Attack Scenario:
+   Because unlock() calculates amount via canUnlockAmount, but there is no guarantee that amount is capped by user lock balance (_locks[msg.sender]), a user may call unlock repeatedly to extract more than their originally locked amount. If canUnlockAmount overflows or returns values greater than original deposits due to state inconsistency, the contract would allow unbounded withdrawals.
+   
+   Impact:
+   Attackers can drain the contract and steal all user funds, resulting in total loss of user deposits.
+   
+   Recommended Fix:
+   undefined
+
+
+3. Reentrancy via ERC20 transfer before state update
+   Type: Reentrancy
+   Function: unlock
+   
+   Attack Scenario:
+   In unlock(), the contract transfers tokens to the user before updating user lock state. An attacker using a reentrant ERC20 token can reenter unlock() and extract extra funds before lock balances are updated.
+   
+   Impact:
+   Attacker can recursively unlock and drain contract beyond their own balance.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

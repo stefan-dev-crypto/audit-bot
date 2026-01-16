@@ -1,0 +1,45 @@
+Contract Address: 0x0650caf159c5a49f711e8169d4336ecb9b950275
+Source File: 151_0x0650caf159c5a49f711e8169d4336ecb9b950275.sol
+Audit Date: 2026-01-15T16:23:26.306Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The StakingRewards contract contains a critical division-by-zero vulnerability in the rewardPerToken() calculation, which results in revert Denial-of-Service (DoS) whenever _totalSupply is zero. This can lock reward updates and prevent new staking action until new stake is deposited, resulting in asset lockup and protocol downtime. Additionally, there are business logic flaws such as front-running edge-cases around staking, and ERC20 token precision/fee-on-transfer compatibility omissions.
+
+
+Critical Issues Found:
+
+1. Division by Zero in rewardPerToken Calculation
+   Type: DoS/Fund Lockup via Division by Zero
+   Function: rewardPerToken,stake,withdraw
+   
+   Attack Scenario:
+   A user triggers stake/withdraw when _totalSupply is zero, causing rewardPerToken() to revert on division by zero. This prevents all further staking actions from succeeding, causing funds and protocol activity to be locked until the code is upgraded.
+   
+   Impact:
+   Permanent Denial of Service (DoS) and protocol-wide fund lockup.
+   
+   Recommended Fix:
+   undefined
+
+
+2. No Handling for Fee-on-Transfer or Non-Standard ERC20 in stake/withdraw
+   Type: Asset Loss/Economic Attack
+   Function: stake,withdraw
+   
+   Attack Scenario:
+   If the stakingToken or rewardsToken implements a fee-on-transfer or is a rebasing token, the actual amounts received/sent differ from the assumed 'amount', causing balance mismatches: users may be over-credited or under-rewarded, and the contract can drift in accounting.
+   
+   Impact:
+   Unfair distribution, users exploiting fee mechanics for extra rewards, or loss of user/contract funds.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

@@ -1,0 +1,45 @@
+Contract Address: 0x7b0b3d2a36442aeb4d11dbfa78679ad64ea17ea3
+Source File: 38_0x7b0b3d2a36442aeb4d11dbfa78679ad64ea17ea3.sol
+Audit Date: 2026-01-15T14:17:16.691Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The UXLINKTokenRewardPoolMultiple contract exposes major vulnerabilities and business logic flaws accessible to any user. These include a broken reward accounting logic, critical reentrancy danger on ERC20 transfers (if the token is malicious), and unrestricted user position enumeration risking gas griefing. Further, the broken interface or missing totalSupply() and lastTimeRewardApplicable() definitions mean essential contract invariants can be bypassed or yield run-time errors that may lock funds. Several functions allow blocking behavior, and some economic exploits allow griefing or draining the pool.
+
+
+Critical Issues Found:
+
+1. Missing totalSupply() and lastTimeRewardApplicable() Functions Allow Broken Reward/Incentive Calculation
+   Type: Broken invariant / Arithmetic error
+   Function: rewardPerToken,updateReward,stake,withdraw,harvest,fixUpdateUserPower
+   
+   Attack Scenario:
+   The contract calls totalSupply() and lastTimeRewardApplicable(), which are never defined, in the rewardPerToken() function and updateReward modifier. Any call to stake, withdraw, harvest, or reward accounting will revert or behave unpredictably. A user can DoS the entire pool or prevent reward updates, creating widespread lockup or even permanent loss of staked and reward tokens.
+   
+   Impact:
+   Pool-wide DoS. Users may be unable to stake, withdraw, or harvest, locking all funds.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Potential Reentrancy in withdraw() and unsafeTokenTransfer() if Reward Token Is Malicious
+   Type: Reentrancy (dependent on token implementation)
+   Function: withdraw,safeTokenTransfer,notifyMintAmount
+   
+   Attack Scenario:
+   If a malicious token is supplied as stakedToken or rewardToken and its transferFrom or transfer callback calls back into the contract (using multicall or a crafted ERC777/223/ERC20), attacker can reenter withdraw, stake, or harvest. NonReentrant is used, but the notifyMintAmount function is not protected and calls safeTransferFrom, which could indirectly trigger state-changing operations.
+   
+   Impact:
+   Potential to re-enter state-altering logic, possibly bypassing accounting, draining rewards, or causing overflows/underflows.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

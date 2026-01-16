@@ -1,0 +1,59 @@
+Contract Address: 0xd37bbe5744d730a1d98d8dc97c42f0ca46ad7146
+Source File: 31_0xd37bbe5744d730a1d98d8dc97c42f0ca46ad7146.sol
+Audit Date: 2026-01-15T14:13:17.075Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+Several critical vulnerabilities and business logic flaws exist in the THORChain_Router contract allowing for unrestricted vault allowance drains, DoS, fund lockups, and reentrancy risks due to mismanagement of vault allowances, unsafe asset transfer patterns, and permissive function access.
+
+
+Critical Issues Found:
+
+1. Unrestricted _vaultAllowance Draining via transferOut
+   Type: Unchecked subtraction / Underflow / Economic attack
+   Function: transferOut
+   
+   Attack Scenario:
+   Any user can call transferOut() specifying themselves as the msg.sender, with an asset and arbitrary amount, even if _vaultAllowance[msg.sender][asset] is zero. The subtraction will underflow and revert in Solidity 0.8+, but this enables an easy DOS attack on anyone's funds or causes lockups if ever uninitialized, and the lack of msg.sender checks allows anyone to try to reduce allowances of others by reentrancy or dust.
+   
+   Impact:
+   Potential fund lockups, denial of service, or incorrect accounting as a result of allowance misuse and unrestrained access.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Unprotected _vaultAllowance Adjustments via transferAllowance and returnVaultAssets
+   Type: Insufficient access control / Broken bank logic
+   Function: transferAllowance,returnVaultAssets
+   
+   Attack Scenario:
+   Any user can call transferAllowance() or returnVaultAssets() to transfer the underlying _vaultAllowance of any other address (including vaults), since allowances are always indexed by msg.sender, not a specified vault owner. Malicious users can repeatedly reduce or move others' balances by calling with crafted arguments.
+   
+   Impact:
+   Allows anyone to reassign vault allowances away from rightful owners, effectively socializing vault funds or locking them up from their intended destination.
+   
+   Recommended Fix:
+   undefined
+
+
+3. Arbitrary External Calls in transferOutAndCall With Wildcard Targets
+   Type: External call to untrusted contract / Reentrancy / Asset theft vector
+   Function: transferOutAndCall
+   
+   Attack Scenario:
+   A user can pass any address as aggregator to transferOutAndCall(), allowing reentrancy into the router or potentially malicious bytecode to be executed that steals assets, bypasses invariants, or exploits the router in other ways. This pattern is extremely risky when passing value and tokens to unvetted third-party contracts.
+   
+   Impact:
+   Asset loss, router invariant breakage, or ecosystem-wide attacks leveraging router with composability.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

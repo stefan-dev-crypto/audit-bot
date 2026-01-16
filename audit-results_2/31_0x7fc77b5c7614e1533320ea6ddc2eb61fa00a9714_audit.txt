@@ -1,0 +1,73 @@
+Contract Address: 0x7fc77b5c7614e1533320ea6ddc2eb61fa00a9714
+Source File: 125_0x7fc77b5c7614e1533320ea6ddc2eb61fa00a9714.sol
+Audit Date: 2026-01-15T15:28:08.524Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The Curve pool contract as written has several critical user-exploitable issues, primarily around oracle/rate manipulation, reentrancy vulnerabilities, and incorrect accounting due to potential rounding errors. Users can perform economic attacks like draining funds via lending token (cToken) inflation/manipulation, and suffer from precision loss and invariant-breaking in pooled balances. Especially severe is the direct use of cERC20 `exchangeRateCurrent()` in pricing logic, which can be manipulated in composable DeFi settings, leading to unfair liquidity extraction. At least one function (e.g., add_liquidity) is not protected against reentrancy at the time of balance update, raising fund-loss risk. The exposure to external cToken rate oracles and improper rounding/invariant maintenance enables user-exploitable fund loss and unfair redistribution.
+
+
+Critical Issues Found:
+
+1. cToken Price Oracle Manipulation Enables Value Extraction
+   Type: Oracle manipulation / Economic value extraction
+   Function: _rates,add_liquidity,exchange,remove_liquidity,remove_liquidity_imbalance,remove_liquidity_one_coin
+   
+   Attack Scenario:
+   A user can manipulate the cToken (e.g., renBTC cERC20) exchangeRate via direct calls to the underlying lending protocol, causing the Curve pool's internal virtual pricing (`_rates()` uses exchangeRateCurrent()). This allows users to time deposits and swaps around moments of favorable mispricing, draining value from other LPs. With flash loans, an attacker can (A) manipulate cToken exchange rate, (B) deposit or swap in Curve at manipulated rates, (C) revert the manipulation, realizing unearned profits.
+   
+   Impact:
+   Direct loss of value from honest LPs and users, unfair arbitrage extraction, pool invariant break, and fund loss.
+   
+   Recommended Fix:
+   undefined
+
+
+2. No Slippage Check in remove_liquidity exposes dust/rounding drain
+   Type: Dust/rounding error causes unfair redistribution
+   Function: remove_liquidity
+   
+   Attack Scenario:
+   When removing liquidity with `remove_liquidity`, precision rounding for each coin and lack of strict accounting may enable a user to consistently withdraw a bit more than their share due to rounding in their favor, especially when pool supply is low (e.g., low supply LP tokens, attacker fragments their position and withdraws repeatedly).
+   
+   Impact:
+   Slow but guaranteed loss of fund to attackers exploiting rounding at liquidity withdrawal, lockup/stranding of pool dust tokens.
+   
+   Recommended Fix:
+   undefined
+
+
+3. Precision Errors in virtual price/invariant computation
+   Type: Broken invariant/economic value extraction
+   Function: add_liquidity,remove_liquidity,get_D,get_virtual_price
+   
+   Attack Scenario:
+   A user can repeatedly perform add/remove liquidity operations in a way that exploits the division/truncation in `get_D`, `get_D_mem`, and related functions, extracting value from the pool or leaving residual amounts (dust) locked/unaccounted for. As the pool supply fragments, these errors become material.
+   
+   Impact:
+   Fund loss, value extraction at the expense of other LPs, eventual pool accounting drift.
+   
+   Recommended Fix:
+   undefined
+
+
+4. Potential Reentrancy in external cToken/ERC20 calls
+   Type: Reentrancy
+   Function: add_liquidity,exchange,remove_liquidity,remove_liquidity_imbalance
+   
+   Attack Scenario:
+   Although the contract uses a nonreentrant lock in some public functions, the invariant/balance updates are not always performed before untrusted external calls to cERC20/ERC20 tokens, e.g., in add_liquidity, remove_liquidity, exchange, making the contract vulnerable if underlying tokens are malicious or if the guard is bypassed in aggregator contexts or via gas griefing and callback hooks.
+   
+   Impact:
+   Possibility of pool balance manipulation, double-withdrawal, or DoS via external malicious token contract.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

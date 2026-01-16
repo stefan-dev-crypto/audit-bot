@@ -1,0 +1,73 @@
+Contract Address: 0xb4ff7412f08c22d7381885e8bda9ee9825092fd1
+Source File: 187_0xb4ff7412f08c22d7381885e8bda9ee9825092fd1.sol
+Audit Date: 2026-01-15T16:51:28.078Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The StablecoinBridge contract contains several critical vulnerabilities and business logic flaws exploitable by any user. Notably, the contract's minting limit and horizon are only enforced after minting and state update, enabling over-minting and potential bypasses. Burn operations do not sufficiently validate balances or minted totals, enabling inflation attacks and fund extraction. The decimal conversion code is incomplete and broken, risking systematic value miscalculation.
+
+
+Critical Issues Found:
+
+1. Enforcement of minting limit and horizon is performed after dEURO tokens are minted and state update
+   Type: Broken Invariant / Limit Bypass
+   Function: _mint,mint,mintTo
+   
+   Attack Scenario:
+   Attacker calls mint/mintTo with a value causing 'minted + amount' to exceed the 'limit' or after 'horizon', but the contract mints dEURO tokens before checking and reverting limit/horizon. As a result, tokens are minted to the attacker, and a 'revert' is triggered only after the fact, leaving the system state inconsistent.
+   
+   Impact:
+   Unlimited dEURO tokens can be minted by attackers, inflating supply and breaking invariants. Real-world impact: catastrophic loss of value pegging, platform insolvency, or trust collapse.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Broken decimal conversion logic results in systematic value miscalculation
+   Type: Precision Loss / Value Manipulation
+   Function: _convertAmount (implicit in mint/mintTo/burn functions)
+   
+   Attack Scenario:
+   Flawed _convertAmount implementation and missing logic when toDecimals > fromDecimals causes amount to be either unconverted or zero (for decimal > difference), causing attackers to exploit difference in transfer value. E.g., if dEURO has higher decimals, users can mint vastly more dEURO for less input.
+   
+   Impact:
+   Users can manipulate decimal conversion to extract more dEURO for less EUR, or lose value due to rounding, leading to unfair value redistribution and destabilization.
+   
+   Recommended Fix:
+   undefined
+
+
+3. No input validation allows minting/burning zero tokens (potential accounting breaks, griefing, dust handling issues)
+   Type: Input Validation / Dos/Accounting Edge Case
+   Function: mint,mintTo,burn,burnAndSend,_mint,_burn
+   
+   Attack Scenario:
+   An attacker can call mint or burn functions with zero-value, causing unnecessary on-chain activity, event emission, and possibly bypassing important checks if target tokens have loose requirements.
+   
+   Impact:
+   Potential DoS vectors via event/transaction spam, accounting drift, or unexpected dEURO/EUR flows if downstream contracts are not robust to zero-value semantics.
+   
+   Recommended Fix:
+   undefined
+
+
+4. No reentrancy protection around EUR or dEURO token interaction; relies on safeTransferFrom/safeTransfer/burnFrom which are user-supplied
+   Type: Reentrancy
+   Function: mintTo,burnAndSend,_mint,_burn
+   
+   Attack Scenario:
+   Attacker deploys a malicious EUR/dEURO token with reentrancy behavior in transferFrom/transfer/burnFrom, allowing callback and state corruption/double-spend during mint/burn.
+   
+   Impact:
+   Contract state (e.g., minted) can be reentrantly manipulated, leading to over-minting, fund extraction, or Denial-of-Service.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

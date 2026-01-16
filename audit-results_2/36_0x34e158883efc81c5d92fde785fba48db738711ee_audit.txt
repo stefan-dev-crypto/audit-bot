@@ -1,0 +1,59 @@
+Contract Address: 0x34e158883efc81c5d92fde785fba48db738711ee
+Source File: 130_0x34e158883efc81c5d92fde785fba48db738711ee.sol
+Audit Date: 2026-01-15T15:36:30.859Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The Invoice contract exposes serious vulnerabilities and business logic flaws exploitable by permissionless users, including ERC20 token drain due to unsafe use of transferFrom, missing isPaid pre-condition allowing double/spam payments, and unchecked signature replay issues leading to potential payment replay attacks. Additionally, a lack of payload/hash collision protection and missing non-reentrancy guard present real-world risk scenarios where attackers can extract or disrupt value.
+
+
+Critical Issues Found:
+
+1. Reentrancy Attack on ERC20 pay() via Callback Tokens
+   Type: Reentrancy
+   Function: pay
+   
+   Attack Scenario:
+   A malicious ERC20 token with a callback in safeTransferFrom() could reenter the pay() method or withdraw function during the token transfer and manipulate state before isPaid is set, potentially replaying payment logic or interfering with expected flow.
+   
+   Impact:
+   May allow double-spend, repeated event emission, or unintended state manipulation; can also enable DoS or theft depending on token's behavior and integration.
+   
+   Recommended Fix:
+   undefined
+
+
+2. No Replay or Uniqueness Check for payload/hash, Allowing Payment Replay Attacks
+   Type: Signature Replay/Replay Attack
+   Function: pay
+   
+   Attack Scenario:
+   Even after being paid for a given payload, anyone can call pay() again with the same payload/hash/signature to make more payments or force users to pay (in token mode) multiple times unintentionally.
+   
+   Impact:
+   Attackers can force double/spam payments for the same invoice by multiple or single users; user fund loss, overpayment, or malicious draining can occur.
+   
+   Recommended Fix:
+   undefined
+
+
+3. ERC20 Token Drain via Missing isPaid Check inside Token Flow
+   Type: Business Logic Error/Economic Attack
+   Function: pay
+   
+   Attack Scenario:
+   Because pay() does not check isPaid[payload] before allowing a new payment, any user can call pay repeatedly for the same payload with ERC20 tokens and drain users' balances by submitting repeated transferFrom operations.
+   
+   Impact:
+   Malicious users can force repeated payments for the same invoice from users, draining their approved balances and leading to economic losses.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

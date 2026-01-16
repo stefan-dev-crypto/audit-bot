@@ -1,0 +1,59 @@
+Contract Address: 0xcf50b810e57ac33b91dcf525c6ddd9881b139332
+Source File: 116_0xcf50b810e57ac33b91dcf525c6ddd9881b139332.sol
+Audit Date: 2026-01-15T15:20:10.858Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The cvxRewardPool contract suffers from multiple critical vulnerabilities including reentrancy risks on staking/withdrawal, potential share accounting manipulation through the use of extraRewards (external-callback) and missing access controls on donation, and unsafe reward accounting. Unhardened external calls to user-supplied addresses, and unsafe token approval semantics for rewardToken and cvxCrvToken, allow attackers to exploit contract balance and manipulate staking/accounting to their advantage. Combined, attackers can potentially steal or disrupt user rewards, block reward claims, and misappropriate pool funds.
+
+
+Critical Issues Found:
+
+1. Reentrancy via External 'extraRewards' Callbacks in stake/withdraw/getReward
+   Type: Reentrancy (external call before state change)
+   Function: stake,stakeFor,withdraw,getReward
+   
+   Attack Scenario:
+   Attacker sets their own malicious contract as an extraReward (by controlling the rewardManager), then calls stake or withdraw. The malicious contract, when called via IRewards(extraRewards[i]).stake/msg.sender, can reenter the main contract (e.g., via ERC20 callback), causing _totalSupply / _balances / rewards accounting to break invariants. Especially critical since stake/withdraw rewards accounting is updated in a modifier before the loop, but the loop does not account for reentrancy.
+   
+   Impact:
+   Potential double-claiming of rewards, draining of contract funds, reward accounting desynchronization, or permanent fund lockup for honest users. Enables loss or theft of user and reward funds.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Unsafe Use of ERC20 safeApprove: Risk of Race Condition & Approval Hijack
+   Type: Allowance Race/Approval Attack
+   Function: getReward
+   
+   Attack Scenario:
+   If rewardToken or cvxCrvToken is a non-standard ERC20, or an attacker can trigger getReward in rapid succession, approval may be hijacked. If approve-to-zero breaks (old tokens, e.g. USDT), a recipient could spend more than intended.
+   
+   Impact:
+   Potential for rewardToken or cvxCrvToken to be drained by a malicious contract at crvDeposits or cvxCrvRewards, especially if these addresses are user-controlled.
+   
+   Recommended Fix:
+   undefined
+
+
+3. Malicious or Gas-Heavy extraReward contracts Can Cause DoS
+   Type: Gas Griefing/Denial of Service via External Call
+   Function: stake,stakeFor,withdraw,getReward
+   
+   Attack Scenario:
+   Attacker (if they ever get rewardManager privileges) can add untrusted or malicious contracts to extraRewards. There are no checks that IRewards is an actual reward pool, or that it can't revert/consume extreme gas. If getReward/withdraw/stake loops over many addresses (each with getReward/stake/withdraw) and one is malicious, the function call can revert.
+   
+   Impact:
+   Permanent Denial-of-Service for all honest users: nobody can call withdraw, stake, or getReward after malicious contract inclusion. Honest users' funds are effectively locked.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

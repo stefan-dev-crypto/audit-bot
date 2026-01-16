@@ -1,0 +1,59 @@
+Contract Address: 0x34deff97889f3a6a483e3b9255cafcb9a6e03588
+Source File: 185_0x34deff97889f3a6a483e3b9255cafcb9a6e03588.sol
+Audit Date: 2026-01-15T16:49:12.785Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The yieldTHOR vault contract has multiple critical economic and business logic vulnerabilities exploitable by any user, leading to reward theft, unfair reward distribution, and possible DoS on rewards. Reward accounting is manipulatable via flash loans/batching as deposits affect reward share. The reward claim logic is not robust against rounding/underflow and share mint skim. These allow for critical exploitation of pool users.
+
+
+Critical Issues Found:
+
+1. Reward Theft via Flash Deposit/Mint Before Reward Injection
+   Type: Economic Attack / Reward Distribution Manipulation
+   Function: deposit,mint,depositRewards,claimRewards
+   
+   Attack Scenario:
+   An attacker can deposit or mint vault shares right before rewards are deposited, maximizing claimable rewards with minimal asset lockup. The following sequence allows profit extraction: 1) Attacker deposits shortly before depositRewards(); 2) Attacker claims high share of rewards; 3) Attacker withdraws/redeems assets—effectively taking a large share of rewards at low cost.
+   
+   Impact:
+   Enables frontrunning/MEV attacks extracting a disproportionate share of rewards, draining value from long-term users and discouraging participation.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Reward Skimming on Vault Entry for Free (Initial Share Mint Skim)
+   Type: Invariant Break / Reward Distribution Exploit
+   Function: deposit,mint,depositRewards
+   
+   Attack Scenario:
+   If the first user deposits before any rewards are deposited, then rewards are deposited, the first user captures 100% of future rewards—no anti-sandwich or join fee is present. Rewards can be 'skimmed' by timing deposits and reward contributions with no protection.
+   
+   Impact:
+   Allows unfair monopolization of all rewards by early (or only) depositors via permissionless vault entry, harming later users.
+   
+   Recommended Fix:
+   undefined
+
+
+3. Incorrect Reward Claim Calculation Allows Reward Over-Claim and Underflow
+   Type: Accounting Bug / Math Underflow
+   Function: claimRewards
+   
+   Attack Scenario:
+   The claimRewards function calculates pending as: uint256 pending = uint256(accumulated - rewardDebt[msg.sender]); However, if rewardDebt[msg.sender] > accumulated (possible after full withdrawal or transfer), this results in conversion of a negative int256 to uint256, causing a massive payout (2^256 - ...), draining the vault.
+   
+   Impact:
+   Any user can force payout of almost all vault rewards to themselves after certain transfer/withdrawal scenarios. Catastrophic loss of all rewards funds.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

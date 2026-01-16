@@ -1,0 +1,59 @@
+Contract Address: 0x7af2a142c3486a9726791098e6415b768513e363
+Source File: 96_0x7af2a142c3486a9726791098e6415b768513e363.sol
+Audit Date: 2026-01-15T14:45:05.797Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The ERC20Strategy contract enables unprivileged users to perform several actions that lead to severe business logic breaks and facilitate critical fund extraction attacks. The primary issues include a buyTokens() function that leaks ETH in a circular trade via protocol arbitrage, broken pricing invariants, and reentrancy-sensitive transfers. Untrusted input flows allow repeated extraction of protocol-held ETH, underpriced opportunities, and potential fund lockup/leakage. Several checks rely on variables manipulated through public flows, leaving core protocol value open to extraction. Other logic allows for griefing, frontrunning, and auction mechanism bypass.
+
+
+Critical Issues Found:
+
+1. Arbitrageable Circular Buy/Sell Allows Infinite ETH Extraction (zero net ERC20 flow)
+   Type: Economic Attack / Broken Business Invariant
+   Function: buyTokens,sellTokens
+   
+   Attack Scenario:
+   A user with bagSize tokens can call buyTokens(): this transfers bagSize tokens to the contract and immediately gets funds == availableFunds() (from protocol fees) refunded in ETH. A bag is listed for sale at listPrice = funds * priceMultiplier / 1000. The user can then immediately sellTokens(bagId) and repurchase the same bagSize tokens for only listPrice ETH. Since priceMultiplier is initialized as 1200 (i.e., 20% markup), this means the seller effectively only needs `listPrice` ETH to receive back their bagSize tokens, plus the protocol rewards the ETH fee (funds) via availableFunds(). If the availableFunds() function is not strictly tied to the protocol's net growth or limited, the user can extract value each time.
+   
+   Impact:
+   Unprivileged users can infinite loop buyTokens() and sellTokens() with synthetic ETH in and out, draining the contract's availableFunds/fee rewards and corrupting the ETH/token accounting. Protocol ETH drains to attackers with very little ERC20 risk.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Reentrancy/Eth Extraction by Protocol-Internal 'ETH Forward' Patterns
+   Type: Reentrancy with Synchronous Fund Transfer
+   Function: buyTokens,sellTokens
+   
+   Attack Scenario:
+   Although buyTokens and sellTokens use nonReentrant, forceSafeTransferETH makes synchronous external calls with value to msg.sender. If SafeTransferLib is not hardened against gas griefing, attacks may still attempt to manipulate state. Even though nonReentrant limits most recursive attack, ETH-forward during sensitive accounting can facilitate DoS or state desync if token callbacks are misused.
+   
+   Impact:
+   Potential for state desync/DoS with malicious tokens or if future versions bypass nonReentrant. May not currently allow full reenter attack but is a dangerous pattern for business-logic safety.
+   
+   Recommended Fix:
+   undefined
+
+
+3. Price Manipulation via Unrestricted Fee Income and buyTokens Refund
+   Type: Broken Pricing Oracle / User Manipulable Auction Invariant
+   Function: buyTokens
+   
+   Attack Scenario:
+   Unprivileged users can game availableFunds (apparently tied to currentFees) by, for example, sandwiching buyTokens with external calls to addFees or manipulating the timing/ETH in contract. Since listing price is a deterministic multiple of funds at the moment of buyTokens, buyTokens can be orchestrated by MEV bots to maximize ETH given out and tokens acquired, extracting protocol income.
+   
+   Impact:
+   Oracle/pricing invariant break, enabling sandwich attacks and value leak to faster actors. If availableFunds grows quickly (e.g. via hook payments), users can get huge ETH for little token risk.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

@@ -1,0 +1,59 @@
+Contract Address: 0xe179d801e6882e628d6ce58b94b3c41e35c8518a
+Source File: 159_0xe179d801e6882e628d6ce58b94b3c41e35c8518a.sol
+Audit Date: 2026-01-15T16:31:45.300Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The Mooniswap DEX contract is vulnerable to economic attacks and broken invariants involving non-deflationary token assumptions, multiple deposit/withdrawal/fee-related flaws, and can be exploited for value extraction and potential pool manipulation by general users. No classic reentrancy or direct fund lock/loss was observed, but the business logic permits unfair redistribution and oracle manipulation-type attacks by public actors.
+
+
+Critical Issues Found:
+
+1. Loss of Pool Invariant with Fee-on-Transfer/Deflationary Tokens
+   Type: Broken invariant (fee-on-transfer/ERC20 non-compliance)
+   Function: depositFor,withdrawFor,swapFor,_doTransfers
+   
+   Attack Scenario:
+   An attacker deposits or swaps with a fee-on-transfer or deflationary token (where balance decrease > transferred value), causing the pool's internal math (notably, invariant calculations and LP share minting/burning) to become incorrect. This allows attackers to extract more funds than they should or even drain the pool by making the internal accounting inconsistent with true balances.
+   
+   Impact:
+   Attacker can drain pool funds, unfairly mint/claim more LP shares, or break the price invariant, leading to massive value extraction and pool insolvency.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Virtual Balance Manipulation Due to Front-Running/Batching
+   Type: Broken pricing/virtual balance manipulation
+   Function: swapFor,depositFor,withdrawFor
+   
+   Attack Scenario:
+   Due to the design of 'virtual balances' and decay, an attacker can sequence swaps and deposits/withdrawals within the same block (possibly via self-mined blocks or MEV searchers) to update virtual balances, block-decay, and sandwich users. This results in temporarily advantageous pricing that does not match actual pool state.
+   
+   Impact:
+   Permits MEV searchers or advanced actors to extract value by repeatedly updating virtual balances, causing others to swap at incorrect rates. Can lead to unfair profit that violates expected invariants.
+   
+   Recommended Fix:
+   undefined
+
+
+3. LP Share Minting Calculation Broken if Real Token Received != Expected
+   Type: Economic attack via LP minting
+   Function: depositFor
+   
+   Attack Scenario:
+   The contract calculates LP shares to mint using provided maxAmounts before knowing the real deposited amounts due to ERC20 non-standard tokens. If attacker overstates maxAmounts and the token burns part of transfer, the LP shares minted (and required incoming value) don't match actual tokens received, enabling undercollateralization or overminting of LP tokens.
+   
+   Impact:
+   LPs may obtain excessive tokens or undercollateralization appears, leading to possible fund-loss on future withdrawals.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

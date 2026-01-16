@@ -1,0 +1,73 @@
+Contract Address: 0x7beb4793892491606a51d531f2ec665e1a9bf5ea
+Source File: 162_0x7beb4793892491606a51d531f2ec665e1a9bf5ea.sol
+Audit Date: 2026-01-15T16:34:01.620Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+Mooniswap's core contract reveals critical vulnerabilities and business logic flaws that may result in permanent loss of pool funds, unfair value extraction, and broken pool economic invariants. Most notably, a critical bug in the withdrawFor logic allows for withdrawing an outsized share of the pool by burning liquidity tokens due to improper order-of-operations when calculating withdrawal amounts. Furthermore, the pool is susceptible to classic sandwich and price manipulation attacks due to lack of price-boxing or MEV resistance, amplified by potentially low slippage settings. No reentrancy guards on feeCollector callbacks may result in indirect attacks. Overall, economic and technical invariants can be broken by any user.
+
+
+Critical Issues Found:
+
+1. Critical over-withdrawal via improper prior totalSupply update
+   Type: Fund Extraction (Economic Invariant Violation)
+   Function: withdrawFor
+   
+   Attack Scenario:
+   A user can call withdrawFor to burn liquidity. The totalSupply is not decremented before the withdrawal amount is calculated. This allows the user to receive more tokens than their proportional share, draining the pool over repeated calls.
+   
+   Impact:
+   Direct loss of pool funds and unfair distribution—LPs can withdraw more than their fair share, draining the pool.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Uncapped virtual balance manipulation via flash loans
+   Type: Oracle/Invariant Manipulation
+   Function: swapFor,_doTransfers,depositFor
+   
+   Attack Scenario:
+   A user can use large temporary token amounts (flash loans), accumulate virtual balance votes, or otherwise manipulate the decay-based virtual balances, impacting swap pricing beyond their nominal liquidity.
+   
+   Impact:
+   Attackers can manipulate swap rates for economic extraction, perform sandwich/MEV attacks, or skew the pool's pricing, extracting value from honest LPs/swappers.
+   
+   Recommended Fix:
+   undefined
+
+
+3. No protection against sandwich attacks / indirect MEV extraction
+   Type: Economic Attack (No MEV/Sandwich Protection)
+   Function: swapFor,swap
+   
+   Attack Scenario:
+   An attacker can front-run/back-run user swaps to extract value (classic sandwich), because there is no slippage bounding, anti-frontrun oracle, or rate-limiting, only a parametric slippage fee directly set by LPs.
+   
+   Impact:
+   Users receive poor trade rates, LPs lose funds to malicious traders. Pool can be economically drained over time by active MEV agents.
+   
+   Recommended Fix:
+   undefined
+
+
+4. Reentrancy window via FeeCollector callback (if malicious)
+   Type: Reentrancy (Indirect via Callback)
+   Function: _mintRewards
+   
+   Attack Scenario:
+   If a malicious feeCollector contract is set, the updateRewards call inside _mintRewards is unguarded by reentrancy and may re-enter swap/withdraw/deposit via callback, causing, e.g., double-mint, pool invariant break.
+   
+   Impact:
+   Arbitrary code execution during privileged mint period. Invariants can be broken, funds lost, or accounting bypassed (including with helper contracts).
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

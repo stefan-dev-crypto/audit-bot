@@ -1,0 +1,45 @@
+Contract Address: 0x4809010926aec940b550d34a46a52739f996d75d
+Source File: 46_0x4809010926aec940b550d34a46a52739f996d75d.sol
+Audit Date: 2026-01-15T14:21:15.133Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The PegStabilityModule contract exposes a critical business logic flaw that allows unlimited minting of RUSD stablecoin by swapping 1:1 for the underlying asset with no fee, no price check, and no oracle gating, allowing an adversary to mint or redeem RUSD freely and defeat the peg. This exposes the system to complete value extraction, depegging, and collapse if underlying and RUSD price diverge. Additionally, the mint and redeem functions can be abused in various MEV or flash-loan-style attacks, as all economic checks are missing. There is no oracle usage, no minting/redeeming limits, and no pricing logic.
+
+
+Critical Issues Found:
+
+1. Absence of Price/Oracle Check Enables Infinite Arbitrage and Complete Collateral Drain
+   Type: Economic Attack / Oracle Manipulation / Broken Peg Arbitrage
+   Function: mint,redeem,_mint,_redeem
+   
+   Attack Scenario:
+   If 1 RUSD trades for less than 1 underlying-token off-chain (e.g. on Curve, Uniswap), an adversary can purchase RUSD cheaply and redeem 1 RUSD for 1 underlying here; draining all underlying assets. Similarly, if RUSD is above peg, attacker can mint new RUSD at 1:1, sell off-chain for more underlying. This can be looped (even in one block with MEV/flash loans), resulting in complete theft of backing collateral or collapse of RUSD price.
+   
+   Impact:
+   Loss of all user funds in collateral pool, total depegging of stablecoin, unrecoverable value loss. System cannot maintain soft/hard peg or solvency under malicious trading pressure.
+   
+   Recommended Fix:
+   undefined
+
+
+2. RUSD Minting Not Gated or Limited — Infinite Mint Ability for Controller
+   Type: Broken Invariant / Infinite Mint Attack
+   Function: mint,_mint
+   
+   Attack Scenario:
+   The 'mint' function is onlyController-gated, but the internal _mint function will always transferFrom() from 'from', thereby allowing the contract (with feasible permissioning via flash loan or EOA) to mint unlimited RUSD, provided the 'from' account approves. With batched/automated flows this can be abused to bypass supply limits, flash-mint, or abuse MEV on external DEXs.
+   
+   Impact:
+   Loss of peg discipline, potential for infinite expansion and flash-mint extraction. Facilitates toxic MEV, and price manipulation scenarios.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

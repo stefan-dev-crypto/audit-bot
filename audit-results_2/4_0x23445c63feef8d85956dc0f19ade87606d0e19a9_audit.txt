@@ -1,0 +1,87 @@
+Contract Address: 0x23445c63feef8d85956dc0f19ade87606d0e19a9
+Source File: 11_0x23445c63feef8d85956dc0f19ade87606d0e19a9.sol
+Audit Date: 2026-01-15T14:05:29.606Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+Multiple user-exploitable critical vulnerabilities exist in the CHNStaking contract, notably including missing reward payout mechanisms (stakeholders can never actually claim rewards), unchecked reward/token accounting leading to reward theft, and broken or missing validation that can lock funds or cause grossly incorrect accounting. The contract exposes user funds and economic invariants to trivial attack or denial of service by any user.
+
+
+Critical Issues Found:
+
+1. Missing user-facing reward claim mechanism
+   Type: Broken business logic / Funds lockup
+   Function: claimRewardFromVault,stake,withdraw
+   
+   Attack Scenario:
+   Users can never claim their accumulated rewards directly, as only the rewardVault address can invoke claimRewardFromVault, and there is no public or external function for normal users to get rewards. Unless rewardVault is a publicly callable distribution helper (not shown here), user rewards are permanently locked, robbing stakers.
+   
+   Impact:
+   Permanent lockup of all user rewards. Users who stake never get rewarded, violating core staking contract invariants.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Discrepancy in reward calculation allows manipulation of user pending rewards
+   Type: Inconsistent reward accounting / Double Counting
+   Function: stake,withdraw,claimRewardFromVault
+   
+   Attack Scenario:
+   A user can repeatedly stake and withdraw 0 tokens (or repeatedly call stake and withdraw in patterns) to repeatedly call updatePool and manipulate pendingTokenReward. This allows a user to repeatedly move reward debt and pending rewards, potentially double-counting rewards if claimRewardFromVault is not correctly invoked, or block other users' ability to accurately claim.
+   
+   Impact:
+   Economic/Accounting disruption, potential for theft of additional rewards, and ability to grief or block future claimings.
+   
+   Recommended Fix:
+   undefined
+
+
+3. No reentrancy protection on stake or withdraw functions
+   Type: Reentrancy
+   Function: stake,withdraw,emergencyWithdraw
+   
+   Attack Scenario:
+   If the ERC20 token used for staking is a malicious contract, it can call back into the staking contract in its transfer/transferFrom hooks during stake or withdraw (after or before accounting updates). This would allow double-entrancy into these critical functions and can manipulate user balances and shares.
+   
+   Impact:
+   The attacker can withdraw more than staked, steal rewards, or break totalAmountStake accounting.
+   
+   Recommended Fix:
+   undefined
+
+
+4. Unchecked subtraction potentially allows reverting/DoS
+   Type: Denial of Service via underflow
+   Function: withdraw,emergencyWithdraw
+   
+   Attack Scenario:
+   In withdraw and emergencyWithdraw, pool.totalAmountStake is unconditionally reduced by the withdrawal amount. If this value is not properly tracked or error conditions occur, this can result in a revert and effectively lock all staked funds for all users.
+   
+   Impact:
+   Permanent lockup/DoS of entire pool.
+   
+   Recommended Fix:
+   undefined
+
+
+5. No per-pool or per-user limits or restrictions on pool creation
+   Type: Gas griefing / Pool inflation
+   Function: massUpdatePools
+   
+   Attack Scenario:
+   Although onlyOwner can add new pools, there is no mechanism to prevent a user from creating pools with dust tokens (by colluding with the owner off-chain), bloating the poolInfo array. massUpdatePools becomes increasingly expensive for all public users, and the pool as a whole can be made unusable via gas exhaustion.
+   
+   Impact:
+   Permanent or periodic denial of service of all user and admin functions that iterate over pools.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

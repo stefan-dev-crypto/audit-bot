@@ -1,0 +1,87 @@
+Contract Address: 0x239af915abcd0a5dcb8566e863088423831951f8
+Source File: 126_0x239af915abcd0a5dcb8566e863088423831951f8.sol
+Audit Date: 2026-01-15T15:29:14.919Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The FoomLottery contract contains multiple critical vulnerabilities and business logic flaws exploitable by general users. Key issues include swap slippage exploitation in playETH, absence of bet min/max enforcement, economic loss in ETH refund logic, denial of service potential in the collect function, and limitations in the nonReentrant modifier. Unprivileged users can also induce fund lockup, excessive gas costing, unfair dividend manipulation, and partial payouts due to design defects.
+
+
+Critical Issues Found:
+
+1. Zero-Minimum Slippage on Token Swap May Result in Financial Drain
+   Type: Slippage & Value Extraction (Economic Attack)
+   Function: playETH, playETHAndPray
+   
+   Attack Scenario:
+   An attacker can call playETH with a large msg.value when FOOM liquidity on Uniswap is low or manipulated, since amountOutMinimum in exactInputSingle is zero. This allows purchasing FOOM at an arbitrarily bad rate, which may drain user ETH to receive insufficient FOOM—potentially all ETH swapped with near-zero FOOM output, draining user or others via MEV.
+   
+   Impact:
+   User loses all their ETH for almost no FOOM; MEV bots or attackers exploit swap to profit. Contract may proceed with minimal FOOM, potentially breaking bet logic or game fairness.
+   
+   Recommended Fix:
+   undefined
+
+
+2. No Enforcement of Minimum Bet for FOOM in play/ETH, Allowing Grinding and Manipulation
+   Type: Business Logic Error / Broken Economic Invariants
+   Function: play,playETH,playAndPray,playETHAndPray
+   
+   Attack Scenario:
+   A user can repeatedly call play or playETH with _power set to minimum (or arbitrarily) and no restriction to prevent dust-level bets, causing state bloat, dividend inflation, and undermining lottery incentives.
+   
+   Impact:
+   Lead to wasted gas, dust accounts, overwhelming the bet pool, unfair inflation of shares, and possible contract halt due to gas limit or storage exhaustion.
+   
+   Recommended Fix:
+   undefined
+
+
+3. Contract ETH Refund Mechanism Prone to Locking/Loss via Reverted Fallbacks
+   Type: Funds Loss & Lockup
+   Function: collect
+   
+   Attack Scenario:
+   If a recipient/relayer/owner reverts (fails to accept ETH) in the collect refund mechanism, ETH is attempted to be sent to three addresses sequentially. If all fail, the refund is stuck, but the 'require(ok,"failed to refund");' will revert the whole collect, locking up all winnings until the refund completes.
+   
+   Impact:
+   If all refund targets revert, the collect function always reverts; this causes DOS on winnings for any user using a non-payable recipient address or interacting maliciously.
+   
+   Recommended Fix:
+   undefined
+
+
+4. Potential Funds Lockup and Payout Reduction in payOut
+   Type: Unexpected Funds Lockup & Partial Payout
+   Function: payOut
+   
+   Attack Scenario:
+   payOut silently halves payout if the main balance is insufficient (if (_amount > balance) { _amount = balance/2; }). There is no way for the user to withdraw the residual balance and there’s no path to recover it if global liquidity is locked to another party or due to precision loss.
+   
+   Impact:
+   Funds can get stranded for users if the lottery has too small balance relative to its liabilities. Users cannot recover dust, and attackers can intentionally create lockup scenarios.
+   
+   Recommended Fix:
+   undefined
+
+
+5. NonReentrant Modifier Fails to Prevent Cross-Function Reentrancy
+   Type: Reentrancy Race Condition (State Variable Misuse)
+   Function: payOut,collect,playETH
+   
+   Attack Scenario:
+   The nonReentrant modifier uses 'D.status' as a reentrancy guard, but since _closed value (2) is the same value used for lottery state, unexpected cross-function reentrancy could re-enter in certain code paths if external calls (e.g. token callbacks, fallback, other contracts) are made which re-enter before modifier state is restored.
+   
+   Impact:
+   Potential for reentrancy between nonReentrant functions (e.g. collect, payOut) through token callback/fallback, breaking invariants, draining dividends/funds, or manipulating period transitions.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

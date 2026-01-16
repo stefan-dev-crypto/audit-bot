@@ -1,0 +1,73 @@
+Contract Address: 0xa62f9c5af106feee069f38de51098d9d81b90572
+Source File: 17_0xa62f9c5af106feee069f38de51098d9d81b90572.sol
+Audit Date: 2026-01-15T14:07:58.741Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The StoneVault system contains critical vulnerabilities and business logic flaws. Unprivileged users can exploit the withdrawal and share accounting logic to perform value-extracting attacks, and various invariants can be broken due to lack of correct accounting for pending share withdrawals. Reentrancy is mitigated, but calculation functions are non-view, allowing for stateful manipulation via contract composability. The integration of round-based withdrawal, share price snapshots, and cross-function share/ETH conversion introduces exploitable economic paths, including rounding errors, share mispricing, and potential for indefinite fund lockup based on user actions. Fee front-running and timing attacks are also possible.
+
+
+Critical Issues Found:
+
+1. Withdrawal Share/Asset Accounting Desynchronization
+   Type: Broken Invariant & Economic Manipulation
+   Function: requestWithdraw,cancelWithdraw,instantWithdraw
+   
+   Attack Scenario:
+   A user can call `requestWithdraw`, cancel withdraw, and then repeat this process multiple times across rounds. Because the adjustment of `withdrawableAmountInPast`, `withdrawingSharesInPast`, and `userReceipts` is inconsistent on cross-round actions, it's possible for the attacker to accumulate excessive withdrawable balances or force an undercollateralized system, extracting more ETH than their share's fair value or breaking the accounting invariant.
+   
+   Impact:
+   Drains excessive funds from the vault, breaks share/asset equivalence, undercollateralizes remaining shares, or results in stuck funds for honest users.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Incorrect Share Price Calculation Allows Pre-rebase Extraction
+   Type: Economic Extraction via Mispriced Share Issuance
+   Function: deposit,depositFor,_depositFor,rollToNextRound
+   
+   Attack Scenario:
+   A user can deposit immediately before a round transition, minting underpriced shares (if current share price is lower than the latest snapshot, the user gets more shares), then withdraw after rebase for fair value; repeated timing this can extract value. The logic at deposit rewards the greater of current/round share price, but share price can be manipulated through user-triggered withdrawals, instantWithdraw, or front-running rebase calls.
+   
+   Impact:
+   Allows user to repeatedly extract more than fair value from the vault, reducing asset backing for other shareholders.
+   
+   Recommended Fix:
+   undefined
+
+
+3. Exploitable Withdraw Fee Rate Frontrunning
+   Type: Economic Attack / Fee Manipulation
+   Function: instantWithdraw
+   
+   Attack Scenario:
+   Fee is set by owner but applied only at the moment of withdrawal. An attacker (non-privileged) can observe that the current fee is low, request an instantWithdraw of all shares, and, in the same block, a trusted actor may increase the fee via setWithdrawFeeRate(). If transactions are batched or MEV is used, users may avoid the fee or be unfairly penalized depending on transaction ordering.
+   
+   Impact:
+   Unfair fee extraction or avoidance for some users; value manipulation at scale if exploited via block builder or MEV searchers.
+   
+   Recommended Fix:
+   undefined
+
+
+4. Call to External Contracts in Non-view Accounting Functions (Oracle Manipulation Surface)
+   Type: Composability/Oracle Manipulation Risk
+   Function: currentSharePrice,getVaultAvailableAmount
+   
+   Attack Scenario:
+   Functions `currentSharePrice`, `getVaultAvailableAmount`, etc. are non-view and can cause state changes on the asset and strategy controllers. An attacker can compose such calls within other contracts, causing unanticipated state transitions or manipulating underlying price/oracle-dependent logic, especially in systems integrating this vault as a primitive.
+   
+   Impact:
+   Allows for subtle state manipulation by general users; may break DoS/reserve invariants or manipulate pricing inputs in systems integrating this code.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

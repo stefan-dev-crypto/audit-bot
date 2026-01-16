@@ -1,0 +1,87 @@
+Contract Address: 0xe3985e6b61b814f7cdb188766562ba71b446b46d
+Source File: 154_0xe3985e6b61b814f7cdb188766562ba71b446b46d.sol
+Audit Date: 2026-01-15T16:29:26.502Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The MAYAChain_Router contract contains multiple critical issues allowing unprivileged users to drain vault allowances, perform undercollateralized or unbacked withdrawals, and manipulate core accounting invariants, leading to severe financial loss and broken business logic. Improper authorization, unchecked operations, and lack of asset/accounting protections are present throughout the contract's public APIs.
+
+
+Critical Issues Found:
+
+1. Unrestricted Vault Allowance Manipulation
+   Type: Unauthorized Allowance Reduction/Transfer
+   Function: transferAllowance,returnVaultAssets,_adjustAllowances
+   
+   Attack Scenario:
+   A malicious user can call transferAllowance() or returnVaultAssets() with any asset/vault/account as arguments, arbitrarily reducing balances of any other user or vault in the _vaultAllowance mapping. Since the only key used in _adjustAllowances is msg.sender, but the vault (address) being operated on is a parameter, a user can transfer out another account's allowance by specifying it as newVault or asgard.
+   
+   Impact:
+   Loss of assets from user or vault balances. Any user's or vault's allowance for any ERC20 asset can be transferred to an attacker's address or another address controlled by the attacker.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Underflow in Vault Allowance Accounting
+   Type: Unchecked Arithmetic (Underflow/Overflow)
+   Function: transferOut,transferAllowance,returnVaultAssets,_adjustAllowances,_routerDeposit
+   
+   Attack Scenario:
+   Since arithmetic in _vaultAllowance uses subtraction without prior validation (e.g., _vaultAllowance[msg.sender][asset] -= amount), a user can call transferOut, transferAllowance, or returnVaultAssets with an amount greater than their allowance. In Solidity 0.8.13 this causes a revert, but all state changes prior to the underflow could result in unexpected conditions if not handled properly and could cause DoS, stuck funds, or griefer attacks.
+   
+   Impact:
+   Function reverts and denial of service for legitimate users. Potential for griefing or locking vault flows.
+   
+   Recommended Fix:
+   undefined
+
+
+3. Reentrancy On Vaults via Ether Send
+   Type: Reentrancy via external call
+   Function: deposit,returnVaultAssets
+   
+   Attack Scenario:
+   The deposit() and returnVaultAssets() functions send Ether to arbitrary payable vault or asgard addresses with .send. If a malicious contract is used as the vault or asgard argument, it could potentially exploit logic via reentrancy patterns, though the nonReentrant modifier restricts some of this. However, if any function overriden by a subclass or via callback on other on-chain actors interacts with this contract, reentrancy could become feasible.
+   
+   Impact:
+   Unexpected recursive execution, potential for invariant-breaking if combined with state manipulation elsewhere. In multi-contract environments, may enable logic bugs or stuck Ether.
+   
+   Recommended Fix:
+   undefined
+
+
+4. ERC20 Transfer Success Not Strictly Verified
+   Type: Improper ERC20 Return Handling
+   Function: safeTransferFrom,transferOut
+   
+   Attack Scenario:
+   The contract uses low-level .call and attempts to decode output data for ERC20 transfer and transferFrom, but does not strictly enforce behavior for non-compliant or malicious ERC20 tokens (e.g., tokens that always return 'true' but don't transfer funds, or perform malicious callbacks).
+   
+   Impact:
+   Potential loss or lockup of assets if non-standard/malicious ERC20 tokens are supported or used. Users could deposit 'fake' assets and later attempt withdrawals or interact with the accounting system incorrectly.
+   
+   Recommended Fix:
+   undefined
+
+
+5. User-Controlled Arbitrary External Calls via transferOutAndCall
+   Type: Callback Arbitrary Execution/Unrestricted External Call
+   Function: transferOutAndCall
+   
+   Attack Scenario:
+   The transferOutAndCall function allows any user to call any target contract with arbitrary data and Ether, broadly expanding the attack surface. Attackers may exploit this to grief downstream protocols or perform MEV/front-running attacks.
+   
+   Impact:
+   Unrestricted value transfer to arbitrary contracts. Potential griefing attacks or use as money-laundering/DoS vector.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

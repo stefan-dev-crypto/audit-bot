@@ -1,0 +1,87 @@
+Contract Address: 0x1f629794b34ffb3b29ff206be5478a52678b47ae
+Source File: 82_0x1f629794b34ffb3b29ff206be5478a52678b47ae.sol
+Audit Date: 2026-01-15T14:39:21.327Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The Mooniswap implementation contains several critical vulnerabilities and business logic flaws exploitable by any user. These include lack of proper input validation in the 'withdrawFor' method which allows extraction of nearly all pool funds for a minimal LP share, errors in handling of realBalances in deposit calculations, unsafe assumptions about ERC20 token return values leading to possible loss-of-funds or stuck tokens, exploitable pool initialization logic, and a number of issues leading to unfair reward or fee extraction. The attack surface is primarily around LP liquidity accounting and ERC20 transfer logic.
+
+
+Critical Issues Found:
+
+1. Pool Drain on First Deposit (Initialization Invariant Break)
+   Type: Broken Pool Invariant / Business Logic
+   Function: depositFor
+   
+   Attack Scenario:
+   A user can front-run pool creation and provide a disproportionate amount of one token due to flawed `fairSupply` initialization calculation. The use of `Math.max(fairSupply, maxAmounts[i])` lets the second (or larger) amount set the supply, meaning a user can supply e.g. 1 ETH and 10000 DAI, setting the fairSupply to 10000. The attacker receives the majority of pool shares, allowing extraction of almost all future LP deposits.
+   
+   Impact:
+   Allows an attacker to dominate the LP share in the very first deposit, significantly harming all subsequent liquidity providers and breaking expected invariant of proportional staking.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Zero-Input Withdraw Allows Extraction of All Reserves (Division by Zero Risk)
+   Type: Pool Drain / Broken Invariant
+   Function: withdrawFor
+   
+   Attack Scenario:
+   There is no check that 'amount' passed into `withdrawFor` is less than or equal to totalSupply. Attacker can pass 'amount' == totalSupply and set minReturns=0, burning all supply, then extracting all reserves, even if shares are unfairly acquired in first deposit.
+   
+   Impact:
+   Complete draining of both pool token balances by a malicious user through manipulation of initial liquidity and supply.
+   
+   Recommended Fix:
+   undefined
+
+
+3. VirtualBalance/realBalances Sync Errors Allow Unfair Minting of LP Shares or Fees
+   Type: Broken Accounting / Economic Attack
+   Function: depositFor,withdrawFor,swapFor
+   
+   Attack Scenario:
+   The contract mixes 'virtual' and 'real' balances in scaling functions during deposit/withdraw/transfer, but race conditions and certain sequences of deposit/withdraw can cause actual balances to drift, or allow manipulation by front-running state transitions. These can be exploited to receive unfair liquidity shares or favorable swap rates.
+   
+   Impact:
+   Allows a user to obtain more pool share than proportionally entitled, or to reduce penalties/fees by careful manipulation of timing (composability/flashing).
+   
+   Recommended Fix:
+   undefined
+
+
+4. Unsafe Handling of ERC20 Transfers (No Return Value Checking or Fee-on-Transfer Support)
+   Type: Token Extraction / Fund Loss / Lockup
+   Function: depositFor,withdrawFor,swapFor,_doTransfers
+   
+   Attack Scenario:
+   The contract uses 'uniTransferFrom' and 'uniTransfer' but does not consistently verify return values or handle non-compliant/faulty tokens that don't follow the ERC20 spec, nor does it handle fee-on-transfer tokens. This can lead to stuck user or protocol funds, rounding errors, or outright loss if a malicious token is used.
+   
+   Impact:
+   Leads to permanent locking/loss of user or protocol funds when using non-compliant tokens. Attacker can grief deposits or swaps, resulting in DoS or fund loss for others.
+   
+   Recommended Fix:
+   undefined
+
+
+5. Reentrancy Risk via Arbitrary ERC20 Token Calls (Composability Attack)
+   Type: Reentrancy / DoS / Pool Drain
+   Function: depositFor,withdrawFor,swapFor,_doTransfers
+   
+   Attack Scenario:
+   Although 'nonReentrant' guards exist, the contract interacts with potentially malicious ERC20 contracts (fees, callbacks, approval logic, etc.) without safeguarding against arbitrary external logic. If a token implements malicious fallback or hooks, it is possible to perform state manipulation or steal funds during deposit/withdraw/swap logic.
+   
+   Impact:
+   Allows arbitrary user tokens to grief, reenter or otherwise break pool accounting or drain funds.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

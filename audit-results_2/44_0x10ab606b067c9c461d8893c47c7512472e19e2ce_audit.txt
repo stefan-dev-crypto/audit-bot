@@ -1,0 +1,45 @@
+Contract Address: 0x10ab606b067c9c461d8893c47c7512472e19e2ce
+Source File: 156_0x10ab606b067c9c461d8893c47c7512472e19e2ce.sol
+Audit Date: 2026-01-15T16:30:18.045Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The StakingRewards contract contains multiple critical vulnerabilities and serious business logic flaws exploitable by any user. Most notably, the contract lacks checks against multiple common attacks: zero total supply division, rounding errors, and possible manipulation of state before reward calculations. Attackers can cause contract malfunctions, manipulate rewards, and potentially break invariants, including division by zero that blocks reward claims for all. Critical issues are largely related to unchecked math in core reward logic and missing totalSupply checks.
+
+
+Critical Issues Found:
+
+1. Division by Zero in rewardPerToken() breaks contract, prevents all reward claims
+   Type: Arithmetic Error (Division by Zero)
+   Function: rewardPerToken,stake,withdraw,getReward,exit
+   
+   Attack Scenario:
+   Any user can call withdraw() or exit() and empty their staked balance (so _totalSupply becomes zero). Subsequently, when rewardPerToken() is called by anyone (as part of updateReward modifier), it will execute a division by zero. This will revert all staking, withdrawal, and reward functions for ALL users, locking all remaining rewards and staked assets.
+   
+   Impact:
+   Permanent DoS: All functions protected by updateReward (stake, withdraw, getReward, exit) revert for everyone; contract liveness is lost; users permanently lose ability to withdraw or claim reward.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Unbounded Referral Event Emission Enables Log Spam/Gas Griefing
+   Type: Gas/Resource Griefing
+   Function: stake(uint256 amount, uint16 referral)
+   
+   Attack Scenario:
+   User can call stake() with negligible or even dust amounts in a tight loop, specifying arbitrary referral codes (uint16) and causing the contract to emit vast numbers of Referral events, bloating the event log and exhausting node resources.
+   
+   Impact:
+   Gas griefing of clients and dapps that index or rely on Referral events; could impact chain infrastructure or allow denial-of-service style attacks.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

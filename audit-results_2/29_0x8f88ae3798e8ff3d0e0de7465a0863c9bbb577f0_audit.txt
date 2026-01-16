@@ -1,0 +1,45 @@
+Contract Address: 0x8f88ae3798e8ff3d0e0de7465a0863c9bbb577f0
+Source File: 121_0x8f88ae3798e8ff3d0e0de7465a0863c9bbb577f0.sol
+Audit Date: 2026-01-15T15:25:17.001Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The StoneBeraVault contract is vulnerable to two critical issues accessible to unprivileged users: (1) The public functions claimRedeemRequest() and cancelRequest() are not protected from reentrancy, which could allow reentrancy attacks via the ERC20 or withdrawToken callback, leading to possible accounting manipulation and multi-claim/fund theft; (2) There is a critical business logic flaw because deposited assets and minted shares can be transferred from any whitelisted asset, but asset whitelisting can be expanded by an attacker to 'useless' assets priced via an arbitrary oracle, allowing manipulation of value/accounting and breaking of asset/shares invariants, possibly resulting in deposits for worthless assets and dilution of existing LPs. Users can deposit assets with manipulatable oracle prices (via flashloan or manipulation), then mint or redeem shares at favorable prices. No rate-limiting or fee circuit-breaker exists, and the feeRecipient can be left unset leading to potential blocking of deposit functionality.
+
+
+Critical Issues Found:
+
+1. Lack of Reentrancy Guard in claimRedeemRequest() and cancelRequest() Enables Reentrancy Attacks
+   Type: Reentrancy (State Inconsistency/Theft)
+   Function: claimRedeemRequest,cancelRequest
+   
+   Attack Scenario:
+   An attacker can deploy a malicious ERC20 or withdrawToken implementation that calls back into StoneBeraVault.claimRedeemRequest() (or cancelRequest()), exploiting lack of nonReentrant to re-enter the contract and potentially claim more than their fair share, manipulate redemption accounting, or interfere with share/accounting management. E.g., a user requests redemption, causing withdrawToken to be sent, then re-enters and claims again before state mutation occurs, draining the vault or corrupting accounting.
+   
+   Impact:
+   Loss of funds for honest users, theft of vault funds, breaking of share/accounting invariants, potential total loss of all withdrawable assets.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Asset/Oracle Manipulation via addUnderlyingAsset() Enables Depositing Useless Tokens with Falsified Prices
+   Type: Business Logic Flaw / Invariant Violation (Economic Attack via Asset/Oracle Addition and Price Manipulation)
+   Function: deposit,mint,addUnderlyingAsset
+   
+   Attack Scenario:
+   A malicious user can deploy an ERC20, an unlimited price oracle for it, and then successfully add it as an underlying asset. The attacker then deposits their worthless ERC20, using a manipulated oracle to set an abnormally high price. They receive a large amount of LP shares for zero real value, or mint shares under false accounting. On vault round roll to next round, redemptions and share values can be drained by the attacker, or honest LPs are diluted. No circuit-breaker exists on oracle price jumps or asset listing; underlying assets array allows expansion to arbitrary tokens. Rate/fee circuit-breakers are missing.
+   
+   Impact:
+   Dilution of LPs, redemption at manipulated prices, draining of real assets from vault using worthless assets, breaking core accounting invariants, mass economic loss.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

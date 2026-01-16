@@ -1,0 +1,59 @@
+Contract Address: 0x295ed2f7537883fde8f5bf55cb6696a4a4dbc70e
+Source File: 150_0x295ed2f7537883fde8f5bf55cb6696a4a4dbc70e.sol
+Audit Date: 2026-01-15T16:23:05.824Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The contract contains multiple critical vulnerabilities and business logic flaws. The main critical issues arise from unsafe usage of .transfer (ERC20 without checking return value appropriately for non-compliant tokens), improper handling of storage vs. memory for Stream struct updates (leading to claim re-entrancy and potential double-claim vector), broken invariant in the claim accounting that could allow users to repeatedly claim tokens if claim state isn't properly persisted, and improper construction of the claim logic that opens up value extraction opportunities via reentrancy and race conditions. The createStreamWithPermit may also enable flash-loan-based drain if permit/transferFrom checks are not enforced on token side, and numerous functions are externally callable with weak or no access control or replay protection. Stream deletion before transfer (reentrancy) can lead to business logic breakage.
+
+
+Critical Issues Found:
+
+1. Double-claim/Reentrancy via claim() due to improper stream state update
+   Type: Reentrancy, Broken Invariant - Non-persistent claims
+   Function: claim
+   
+   Attack Scenario:
+   Attacker calls claim() on their stream. If the underlying ERC20 token executes arbitrary code (e.g., attacker implements a malicious token contract or uses ERC777 with hooks), they can re-enter claim() before stream.claimedAmount/state is updated on-chain, causing a double claim or even complete repeated draining. Storage assignment happens after the transfer, but proper ordering and reentrancy protection are missing.
+   
+   Impact:
+   Attacker can extract more than their entitled amount for a stream, bypassing vesting or withdrawal limits, potentially draining the contract.
+   
+   Recommended Fix:
+   undefined
+
+
+2. ERC20 non-compliance can lock funds or allow false-positive failures
+   Type: Transfer Failure Handling/Value Loss
+   Function: createStream,createStreamWithPermit,claim,revokeStream
+   
+   Attack Scenario:
+   If a user creates a stream for a non-standard ERC20 (e.g., transfer returns void or incorrectly returns false), the system may incorrectly assume transfer success/failure, causing funds to be lost or misaccounted, especially if a token returns no value rather than true/false.
+   
+   Impact:
+   Permanent loss or lockup of user/stream creator tokens in contract.
+   
+   Recommended Fix:
+   undefined
+
+
+3. createStreamWithPermit allows relay/spam/pre-funding attacks
+   Type: Griefing / External Account Consumption / Unprotected Permit Usage
+   Function: createStreamWithPermit
+   
+   Attack Scenario:
+   An attacker can front-run/flood createStreamWithPermit calls using a user's signed permit, draining their allowance before they can establish a stream (depending on token, either draining allowance or draining user tokens if permit is broad).
+   
+   Impact:
+   Users may have loss of funds or have their tokens/allowance consumed by attackers, breaking intended business logic.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

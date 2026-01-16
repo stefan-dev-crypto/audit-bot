@@ -1,0 +1,45 @@
+Contract Address: 0xd605a87187563c94c577a6e57e4a36ec8433b9ae
+Source File: 201_0xd605a87187563c94c577a6e57e4a36ec8433b9ae.sol
+Audit Date: 2026-01-15T17:02:38.186Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The FluxStaking contract is subject to two critical vulnerabilities accessible to a general user attacker: a claim inflation bug allowing repeated reward extraction via claim+transfer+claim re-entrancy, and the absence of reentrancy guards on functions performing external calls and state updates, enabling repeated, unfair, or excessive reward and withdrawal actions. Batch functions further compound the risk. These vulnerabilities can lead to unfair value extraction, incorrect accounting, and potential pool draining.
+
+
+Critical Issues Found:
+
+1. Reentrancy on claim() and unstake() enables multiple reward claims
+   Type: Reentrancy/Double claim - State update after external call
+   Function: claim,unstake,batchClaim,batchUnstake,_claim
+   
+   Attack Scenario:
+   Attacker invokes stake() to receive staking token, then claims rewards via claim(). By deploying a malicious contract as _receiver, attacker receives tokens and recursively calls claim/unstake, extracting rewards repeatedly within single transaction before rewardDebt is updated on the record. This is possible because rewardDebt is set only after transferring out the reward, in _claim(), and no reentrancy guard exists.
+   
+   Impact:
+   Attacker can claim inflated, duplicated, or unlimited rewards, draining the TitanX pool and breaking reward distribution invariants, stealing from other stakers.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Missing Reentrancy Protection on unstake() allows token withdrawal before destruction and accounting update
+   Type: Reentrancy
+   Function: unstake
+   
+   Attack Scenario:
+   When unstake() is called, the function first calls _claim() (which itself does an external token transfer to _receiver) before deleting the user record and burning the NFT. An attacker can make _receiver be an address that recursively calls unstake again for the same tokenId (since the record and ownership aren’t cleared until after), thereby triggering state inconsistencies and potentially extracting or moving locked funds multiple times.
+   
+   Impact:
+   Attacker can double-withdraw or double-claim rewards/locked Flux, create inconsistent state, and unlock or drain tokens beyond their fair share.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

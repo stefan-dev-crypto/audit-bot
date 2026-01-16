@@ -1,0 +1,73 @@
+Contract Address: 0xc9f93163c99695c6526b799ebca2207fdf7d61ad
+Source File: 9_0xc9f93163c99695c6526b799ebca2207fdf7d61ad.sol
+Audit Date: 2026-01-15T14:04:32.928Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+Critical vulnerabilities and business logic flaws exist in the contract, primarily relating to external call reentrancy opportunities in trading, unsafe usage of callee patterns (flashloan hooks), lack of oracle validation or manipulation resistance, and potential for user-triggered fund lock/loss due to poor invariant enforcement. There is high real-world risk of value extraction by attackers using bespoke contracts, flashloans and MEV.
+
+
+Critical Issues Found:
+
+1. Arbitrary External Call (dodoCall) Allows Reentrancy and Flashloan/Callback Attacks
+   Type: External Call, Flashloan Arbitrage, Reentrancy (application layer)
+   Function: sellBaseToken,buyBaseToken
+   
+   Attack Scenario:
+   In both sellBaseToken and buyBaseToken, after tokens are sent out to the user (pay-out), and before the contract collects payment (pay-in), it makes an arbitrary external call to IDODOCallee(msg.sender).dodoCall(). This enables an attacker to use a contract as msg.sender and perform reentrant calls, drain pool funds, manipulate contract state, or defraud LPs by changing balances/state prior to payment. Because base/quote tokentransferIn only occurs after the external call, the attacker can use flashloaned funds, or even fail to send the required tokens, especially if the ERC20 is non-standard or malicious.
+   
+   Impact:
+   Allows value extraction from the liquidity pool, possible draining of funds, breaking pricing invariants, and exploiting LPT and settlement logic. Real attackers can repeatedly exploit this mechanism via helper contracts.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Unsafe Oracle Usage - No Oracle Validation/Manipulation Resistance
+   Type: Oracle Manipulation
+   Function: Functions leveraging getOraclePrice (pricing curve)
+   
+   Attack Scenario:
+   The contract calls getOraclePrice() in pricing functions but does not demonstrate any validation, TWAP logic, or resistance to manipulation. An attacker can manipulate the oracle voluntarily integrated into the core pricing curve, enabling attacks such as sandwiching, price manipulation before interacting with tradeBaseToken/buyBaseToken, and economic extraction from LPs.
+   
+   Impact:
+   Attacker can steal from LPs by temporarily tipping the oracle price, performing large trades, extracting value, and resetting the oracle, especially exploitable by MEV bots and flashloan attackers.
+   
+   Recommended Fix:
+   undefined
+
+
+3. No Slippage/Invariant Protection on Deposits/Withdrawals
+   Type: Broken Invariant, Liquidity Drain
+   Function: depositBaseTo,depositQuoteTo,withdrawBaseTo,withdrawQuoteTo
+   
+   Attack Scenario:
+   LP depositBaseTo/depositQuoteTo and withdraw* functions do not enforce invariant maintenance nor robust proportional accounting checks immediately after mint/burn. Attacker can perform trades that tip pool balances, then deposit or withdraw at favorable ratios, extracting value from LPs. This is due to arithmetic that can be front-run, sandwiched, or manipulated due to the uncoupling between targets and actual pool balances.
+   
+   Impact:
+   Economic value drained from LPs by attackers orchestrating state ahead of (deposit/withdraw), then capturing more than fair share of pool value.
+   
+   Recommended Fix:
+   undefined
+
+
+4. Unrestricted ERC20 Token Assumptions - Unsafe Transfer Patterns
+   Type: ERC20 Token Compatibility
+   Function: _baseTokenTransferIn,_quoteTokenTransferIn,_baseTokenTransferOut,_quoteTokenTransferOut
+   
+   Attack Scenario:
+   The contract assumes that calling safeTransferFrom and safeTransfer will always succeed and correspond exactly to the transfer of tokens, with no handling for fee-on-transfer tokens or malicious ERC20s. An attacker could use a non-standard ERC20 as base or quote token which may revert, steal funds, or break logic (e.g., ERC777 hooks, deflationary/faulty ERC20).
+   
+   Impact:
+   Funds can be locked or lost, pool can be griefed or DoS'd, trading and settlement invariants broken.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

@@ -1,0 +1,87 @@
+Contract Address: 0x3bae89b27cc92c8f3fc97617cdd0f196e992e4b2
+Source File: 70_0x3bae89b27cc92c8f3fc97617cdd0f196e992e4b2.sol
+Audit Date: 2026-01-15T14:32:05.214Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The LocalCoinSwapV2Escrow contract allows a general user to create escrows with arbitrary tokens, including malicious or non-standard ones, potentially causing denial of service, value lock, and economic extraction by creating escrows with tokens with hooks or transferWithAuthorization abuse. There is a broken invariant in escrow reentrancy and a lack of replay/duplicate nonce protection in the relayEscrow mechanism. Arithmetic underflows in transferMinusFees can be triggered, and the contract is exposed to partial fund lockup and DoS via atypical ERC20 tokens.
+
+
+Critical Issues Found:
+
+1. No token validation allows escrows with malicious/non-standard tokens
+   Type: Token Agnostic Value Lock / DoS / Malicious Token Abuse
+   Function: createEscrow,relayEscrow,transferMinusFees
+   
+   Attack Scenario:
+   An attacker can deploy a token contract that breaks on transfer, reverts selectively, or allows external reentrancy (e.g., custom ERC777 or fake Token interface), and then creates escrows using this malicious token. This can lock escrow state or funds, block settlement, or inflict unforeseen execution paths (e.g., via onERC777Received or fallback).
+   
+   Impact:
+   Permanent lockup of funds in escrows, DoS on release/cancel, possible full contract DoS if state is manipulated. Unexpected code execution or exploit of business logic by malicious tokens.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Missing nonce/replay protection for relayEscrow transferWithAuthorization
+   Type: Replay Attack / Double Spend in relayEscrow
+   Function: relayEscrow
+   
+   Attack Scenario:
+   The relayEscrow passes an arbitrary _nonce for transferWithAuthorization, but does not check that the trade itself has not already been processed (besides escrows mapping). If the underlying token is buggy or does not prevent replay of the same signed authorization (or uses transferWithAuthorization from contracts that are not EIP-3009 compliant), a replay can occur, causing double withdrawal/spend.
+   
+   Impact:
+   Potential loss of tokens for a victim if a repeated signature is relayed. Escrow invariant break; double-spends.
+   
+   Recommended Fix:
+   undefined
+
+
+3. Unchecked return values for ERC20 safeTransfer/safeTransferFrom
+   Type: Fund Loss via ERC20 non-compliance
+   Function: createEscrow,release,resolveDispute,transferMinusFees,withdrawFees
+   
+   Attack Scenario:
+   If Token implements only the IERC20 interface, but not safeTransfer or safeTransferFrom correctly (e.g., fake token always returns false/silently fails or never returns), funds may not move but internal state will update (escrow deleted, Released/CancelledByBuyer emits, etc).
+   
+   Impact:
+   Users believe assets have moved (escrow unlocks), but tokens are neither transferred nor burned – leading to real world asset loss for seller or buyer.
+   
+   Recommended Fix:
+   undefined
+
+
+4. Possible reentrancy in transferMinusFees and critical paths
+   Type: Reentrancy/State Corruption
+   Function: transferMinusFees
+   
+   Attack Scenario:
+   If a token with malicious transfer or fallback (e.g., ERC777 with hooks or a custom token calling back into escrow functions) is used, the contract may be reentered during transferMinusFees, potentially causing escrow deletion and transfer order reentrancy manipulation.
+   
+   Impact:
+   State corruption, possible bypass of fees or double spend, and inconsistent contract state.
+   
+   Recommended Fix:
+   undefined
+
+
+5. Arithmetic underflow in fee calculation allows incorrect payouts
+   Type: Integer Underflow/Overflow
+   Function: transferMinusFees,resolveDispute
+   
+   Attack Scenario:
+   transferMinusFees guards using an if, but not properly. For very small _value or very large _fee, _value - _totalFees can underflow (since Solidity <0.8.0 does not have built-in overflow protection).
+   
+   Impact:
+   Could break payout amount leading to large or unintended transfers if not properly checked.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

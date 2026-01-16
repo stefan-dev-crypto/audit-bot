@@ -1,0 +1,45 @@
+Contract Address: 0x2c4ea51d9dec7cdabe2d1bde01882f87b5231d21
+Source File: 160_0x2c4ea51d9dec7cdabe2d1bde01882f87b5231d21.sol
+Audit Date: 2026-01-15T16:32:23.229Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The Mooniswap contract exposes several critical vulnerabilities and business logic flaws. Notably, the lack of slippage controls and manipulations possible with virtual balances can allow users to execute sandwich attacks, unfairly extract value from liquidity providers, and potentially cause LP share inflation. Slippage checks are user-supplied, permitting MEV searchers and sandwichers to extract value with no protection for users. The design also allows unfair pool initialization and subtle invariant-breaking situations due to virtual balance and liquidity accounting logic. The following are the critical issues identified:
+
+
+Critical Issues Found:
+
+1. Sandwich Attacks and Oracle Manipulation Due to User-Supplied minReturn
+   Type: Economic Attack (MEV, Sandwich, Oracle Manipulation)
+   Function: swap,swapFor
+   
+   Attack Scenario:
+   An attacker can front-run and back-run any swap transaction with a user-supplied minReturn of 0 (or any value that allows for negative slippage), extracting value from the victim swap by manipulating token prices in and out of the pool. No built-in slippage controls exist to protect the user; this enables maximal MEV extraction.
+   
+   Impact:
+   Users may lose substantial value to sandwich attacks and MEV extraction. Price oracles integrating with this pool can also be manipulated, leading to downstream protocol exploits.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Unfair Initial Pool Share Minting (Liquidity Griefing)
+   Type: LP Share Inflation / Fund Dilution
+   Function: depositFor
+   
+   Attack Scenario:
+   Upon initial pool creation (when totalSupply==0), any user can deposit highly skewed or imbalanced token amounts, yet receive a disproportionately large share of the pool's LP tokens (fairSupply = Math.max for each token, not proportional). If the two deposited amounts differ greatly, the pool's price and future LP shares become unfair, leading to loss for subsequent liquidity providers.
+   
+   Impact:
+   Attackers can initialize pools with unfair pricing and receive the majority of the pool's LP tokens, diluting or grieving future liquidity providers.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

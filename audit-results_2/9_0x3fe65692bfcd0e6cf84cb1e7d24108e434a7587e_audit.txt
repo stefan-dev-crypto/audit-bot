@@ -1,0 +1,73 @@
+Contract Address: 0x3fe65692bfcd0e6cf84cb1e7d24108e434a7587e
+Source File: 35_0x3fe65692bfcd0e6cf84cb1e7d24108e434a7587e.sol
+Audit Date: 2026-01-15T14:16:06.805Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+Multiple critical issues exist. The contract lacks a reentrancy guard on core public/external state-changing functions, making it vulnerable to reentrancy attacks for both stake and withdraw flows. There are severe economic business logic flaws: insufficient validation of transferred tokens allows inflation and draining attacks in the presence of fee-on-transfer or non-standard tokens, and unsafe external callbacks can result in griefing/DoS and value extraction. These issues are all reachable by general users.
+
+
+Critical Issues Found:
+
+1. No Reentrancy Guard on Stake, Withdraw, GetReward Functions
+   Type: Reentrancy
+   Function: stake,stakeFor,withdraw,withdrawAndUnwrap,getReward
+   
+   Attack Scenario:
+   A malicious contract calls `withdraw()` (or `stake()`/`getReward()`), which then triggers external `safeTransfer` or downstream calls to untrusted `extraRewards` contracts before updating balances or after transfers. The attacker’s contract can re-enter these functions, causing state corruption, claiming unearned rewards, or draining funds.
+   
+   Impact:
+   Potential for double-withdraw/reward claims, theft of staked tokens and rewards, breakage of expected account invariants, and potential contract insolvency.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Unsafe Handling of ExtraRewards: Untrusted External Calls in Loop
+   Type: External Call / Griefing
+   Function: stake,stakeFor,withdraw,withdrawAndUnwrap,getReward
+   
+   Attack Scenario:
+   A user can register a malicious contract as an extraReward (using legitimate means outside general user access) or, in composable contexts, stake on behalf of a user whose IRewards contract is malicious. These external contracts can consume all gas, revert, or re-enter, causing DoS, draining funds, or halting reward/withdrawal flows for everyone.
+   
+   Impact:
+   Contract may be bricked (DoS) for all users, users may lose ability to withdraw, contract funds can be locked, and inefficient griefing attacks become possible.
+   
+   Recommended Fix:
+   undefined
+
+
+3. Incorrect Handling of Fee-on-Transfer/Non-Compliant ERC20 Tokens
+   Type: ERC20 Compatibility / Economic Exploit
+   Function: stake,stakeFor,donate
+   
+   Attack Scenario:
+   A user can stake a fee-on-transfer token—`safeTransferFrom` will transfer less than `_amount`, but the full `_amount` is credited to their balance. The attacker can withdraw more than deposited or claim more rewards than deserved. Similarly, on donation or reward distribution, the transferred amount may not match intentions.
+   
+   Impact:
+   Tokens and/or rewards can be infinitely inflated or drained by users, allowing economic exploits and loss of funds for protocol and other users.
+   
+   Recommended Fix:
+   undefined
+
+
+4. Potential Infinite Loop or Gas Griefing via Unbounded extraRewards Array
+   Type: Gas Griefing / DoS
+   Function: stake,stakeFor,withdraw,withdrawAndUnwrap,getReward
+   
+   Attack Scenario:
+   Malicious user continually adds (or arranges to have added) large numbers of extraRewards contracts. Stake/withdraw/getReward gets stuck traversing large arrays, allowing griefing, reverting due to gas exhaustion, or permanent DoS.
+   
+   Impact:
+   Critical functions can become uncallable to all users due to gas exhaustion, leading to locked staked funds or unclaimable rewards.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

@@ -1,0 +1,35 @@
+Contract Address: 0x0000000000000000000000000000019bc51d9b85
+Source File: test_0x0000000000000000000000000000019bc51d9b85.sol
+Audit Date: 2026-01-16T04:43:38.985Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The LeverageUp contract allows arbitrary external calls via user-controlled SwapParams used in the leverageUpWithSwap function. A user can construct SwapParams with method=GenericRoute and arbitrary calldata to _swapGenericRoute(), which will call any router target with arbitrary calldata, potentially draining ETH/ERC20 funds from the contract.
+
+
+Critical Issues Found:
+
+1. Arbitrary External Call via GenericRoute Swap - Contract Funds Draining
+   Type: Arbitrary External Call fund-drain (user-controlled target & calldata)
+   Function: LeverageUp.leverageUpWithSwap,DexSwap._swap,DexSwap._executeSwapStep,DexSwap._swapGenericRoute
+   
+   Attack Scenario:
+   In LeverageUp.leverageUpWithSwap(), an attacker passes a SwapParams[] array with one or more entries of method=GenericRoute. The underlying implementation in DexSwap._swapGenericRoute() decodes each entry, supplying the attacker-chosen router address and calldata (params.router, params.data) to a low-level call (params.router.call(params.data)). Before the call, contract-held ERC20 tokens are force-approved to params.router for unlimited use. Thus, the attacker can:
+- Craft calldata to make the contract approve and then transfer all ERC20 tokens to attacker-chosen addresses
+- Invoke functions on any contract (including malicious routers), e.g., to drain all assets via arbitrary logic
+
+For example, using router=an attacker-controlled contract, and calldata to invoke transferFrom/spend/withdrawal, the attacker can drain any ERC20 held by the contract (to which the contract grants approval immediately prior).
+   
+   Impact:
+   Allows an attacker to drain all ERC20 tokens held by the LeverageUp contract. Fund-drain is exploitable in practice as the user is in full control of the swapParams input, which is executed with maximum allowance granted to attacker-controllable contracts. ETH could also be drained if these routes or calldatas cause the contract to send ETH or execute fallback calls.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

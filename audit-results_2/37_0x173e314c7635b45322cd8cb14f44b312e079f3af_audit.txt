@@ -1,0 +1,31 @@
+Contract Address: 0x173e314c7635b45322cd8cb14f44b312e079f3af
+Source File: 132_0x173e314c7635b45322cd8cb14f44b312e079f3af.sol
+Audit Date: 2026-01-15T15:38:22.839Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The StakingRewards contract suffers from a critical division by zero bug in its rewardPerToken() calculation, which allows any user to revert all staking, reward claiming, and withdrawal operations when total supply is zero. This leads to indefinite DoS and lockup of funds for all subsequent users. Multiple other business logic flaws exist regarding reward calculation, composability, and function design, potentially leading to loss or unfair distribution of funds.
+
+
+Critical Issues Found:
+
+1. Division by Zero in rewardPerToken() Causes Global DoS and Permanent Fund Lockup
+   Type: Denial of Service / Division by Zero
+   Function: rewardPerToken,stake,withdraw,getReward,exit,notifyRewardAmount,setRewardsDuration
+   
+   Attack Scenario:
+   Any user can call withdraw() or exit() to remove their entire stake, reducing _totalSupply to zero. Subsequent calls to rewardPerToken() (used in stake, withdraw, getReward, exit, notifyRewardAmount, setRewardsDuration) attempt to divide by _totalSupply, causing a revert due to division by zero for all users. This blocks further staking, withdrawal, or reward claims for everyone, trapping all funds until contract upgrade or redeployment.
+   
+   Impact:
+   GLOBAL fund lockup; cannot interact with contract methods using updateReward (stake, withdraw, getReward, exit, notifyRewardAmount, setRewardsDuration). All funds left in contract are permanently locked for all users.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

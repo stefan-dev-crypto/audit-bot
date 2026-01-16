@@ -1,0 +1,73 @@
+Contract Address: 0xad37f4b08e90067e5bb90d6d022cf5aaf7b1d718
+Source File: 144_0xad37f4b08e90067e5bb90d6d022cf5aaf7b1d718.sol
+Audit Date: 2026-01-15T15:58:53.849Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+The DAOStaking contract has several critical issues exploitable by any user, including lack of input validation enabling DoS attacks and broken staking logic, incorrectly written or missing reward logic, and misordered validation/updates enabling circumvention or fund lockups. Key economic and invariant-breaking vulnerabilities exist, including reentrancy on burn routines, unguarded voting power assignment, exploitable claim/unStake reward calculations, and potentially inconsistent pool accounting.
+
+
+Critical Issues Found:
+
+1. Broken or Incomplete Reward Calculation and Pool Accounting
+   Type: Business Logic/Invariant Break/Economic Flaw
+   Function: claim,unStake,_stake,_update,_calculateReward
+   
+   Attack Scenario:
+   Any user can claim rewards via `claim()` or `unStake()` with arbitrarily manipulated `epochDay` due to lax update logic. _calculateReward(), _update(), and daysUser are poorly maintained, potentially allowing repeated claims, over-reward, or inconsistent states – including poolSize going negative or draining entire reward supply.
+   
+   Impact:
+   All rewards can be drained by single or repeated calls. Funds could be lost, incorrectly assigned, or result in stakers unfairly claiming more than their share.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Multiple Stake via Stake/PERMIT by the Same User
+   Type: Broken Staking/Unintended Use
+   Function: stake,stakeWithPermit,_stake
+   
+   Attack Scenario:
+   The contract (as written) attempts to prevent multiple stakes for a single user (user.isActive), but a race condition or re-entrant helper contract could allow simultaneous staking. Additionally, poorly maintained epoch tracking can allow multiple overlapping stakes for the same or colluding users.
+   
+   Impact:
+   A user may receive multiple sets of rewards or voting rights, resulting in an unfair rewards split and governance power.
+   
+   Recommended Fix:
+   undefined
+
+
+3. Reentrancy in burnRW and burnRWWithPermit routines
+   Type: Reentrancy/Invariant Corruption
+   Function: burnRW,burnRWWithPermit,_addVotingPower
+   
+   Attack Scenario:
+   The burn functions are public and call into external contracts (ITokenBurn(token).burnFrom). There is no nonReentrant modifier protection here. A reentrant token contract could call back into burnRW again (direct or via fallback) before state is updated, resulting in double VotingPower assignment and broken _rwTotalBurnAmount invariant.
+   
+   Impact:
+   Unbounded inflation of regular wallet voting rights, reward counting errors.
+   
+   Recommended Fix:
+   undefined
+
+
+4. Lack of Pool Cap or Exhaustion Checks: Unchecked Transfers
+   Type: Fund Loss/Invariant Break
+   Function: claim,unStake
+   
+   Attack Scenario:
+   When a user claims or unstakes, the contract transfers rewards from _poolSize. There is no check if _poolSize >= reward. If reward > _poolSize (due to incorrect updating or precision error), the contract will fail with failed transfer, potentially permanently locking funds for all users.
+   
+   Impact:
+   Total lockup of user funds, inability to claim or unstake for all users if poolSize becomes insufficient.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

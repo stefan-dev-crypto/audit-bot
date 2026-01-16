@@ -1,0 +1,59 @@
+Contract Address: 0xb4db55a20e0624edd82a0cf356e3488b4669bd27
+Source File: 52_0xb4db55a20e0624edd82a0cf356e3488b4669bd27.sol
+Audit Date: 2026-01-15T14:24:10.942Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+Several critical vulnerabilities and business logic flaws are present in the Mooniswap AMM and its associated contracts. These include zero slippage when pool is imbalanced (allowing attacker profit), inconsistent initial liquidity minting that may allow pool share sniping, LP share inflation/extraction via invariant manipulation, and weak virtual balance logic that can allow price and fee manipulation under certain attack flows. Additionally, unchecked ERC20 transfer patterns and ineffective reentrancy protection in some edge cases may allow fund loss or incorrect accounting. All critical paths are public and are exploitavle by unprivileged users.
+
+
+Critical Issues Found:
+
+1. Potential Pool Share Sniping Due to Non-Optimal Initial Liquidity Minting
+   Type: LP Share Extraction/Economic Attack
+   Function: depositFor
+   
+   Attack Scenario:
+   During first liquidity provision (when totalSupply == 0), contract mints `_BASE_SUPPLY * 99` shares to the provider, but then sets `fairSupply = max(fairSupply, maxAmounts[i])` for each token in the pool, and then mints `fairSupply` tokens to the user. Because the value of fairSupply can be set to the higher of the two deposits, liquidity providers can supply a small amount of one token and a large amount of another, extracting disproportionate pool share.
+   
+   Impact:
+   Allows first liquidity provider to extract more than their fair share, decreasing fairness and harming later LPs. Pool can start with low effective liquidity for one token, causing price instability and possibly failed future trades.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Invariant Manipulation and LP Share Extraction via Virtual Balances and Decay Logic
+   Type: Invariant Manipulation/Economic Attack
+   Function: swap,swapFor,_doTransfers
+   
+   Attack Scenario:
+   The contract uses virtual balances and decay period windows for swap price calculations (virtualBalancesForAddition/Removal), but an attacker can exploit virtual balance desyncs (from virtual balances scaling logic) to manipulate pool invariant or time swaps around balance decay to extract or inflate LP shares. For example, flash loan-style attacks can rapidly alter ratios and extract value before virtual balances catch up.
+   
+   Impact:
+   Attacker can extract value from other users or LPs; can result in unfair swaps, value extraction, and broken pool in extreme imbalance scenarios.
+   
+   Recommended Fix:
+   undefined
+
+
+3. Reentrancy Guard Ineffectiveness with ERC777/ERC20 Callback Tokens
+   Type: Reentrancy (edge-case)
+   Function: depositFor,withdrawFor
+   
+   Attack Scenario:
+   The contract uses the nonReentrant modifier, but conducts external token transfers (`_tokens[i].uniTransferFrom`) before conducting all state updates in depositFor/withdrawFor. If an ERC777 token or malicious ERC20 with a reentrant fallback is present, attacker can reenter into deposit/withdraw and potentially desynchronize totalSupply vs balances, or manipulate virtual balances, possibly causing LP inflation or loss.
+   
+   Impact:
+   Potential loss of funds or pool invariant break in case of ERC777-style callback reentrancy; may allow user-triggered share accounting corruption.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================
