@@ -23,7 +23,7 @@ export const SETTINGS = {
   
   // Pre-audit regex check for Arbitrary External Call vulnerability
   // If enabled, only contracts matching the pattern will be audited
-  ENABLE_PRE_AUDIT_REGEX_CHECK: process.env.ENABLE_PRE_AUDIT_REGEX_CHECK === 'true' || false,
+  ENABLE_PRE_AUDIT_REGEX_CHECK: process.env.ENABLE_PRE_AUDIT_REGEX_CHECK === 'true' || true,
   PRE_AUDIT_REGEX_PATTERN: process.env.PRE_AUDIT_REGEX_PATTERN || '\\.\\s*(call|delegatecall|staticcall)\\s*\\(\\s*[^,]+,\\s*[^)]+\\)',
 };
 

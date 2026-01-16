@@ -17,6 +17,7 @@ export class OpenAIAuditor {
     this.auditResultsDir = path.join(process.cwd(), 'audit-results');
     this.auditedContractsFile = path.join(process.cwd(), 'data', 'audited-contracts.json');
     this.auditedContracts = new Set();
+    this.auditingContracts = new Set(); // Track contracts currently being audited (prevents duplicate audits)
     this.auditResultIndex = 0; // Independent index for audit results, starting from 0
     
     // Telegram configuration
@@ -376,10 +377,17 @@ If no such vulnerability exists, explicitly state:
   async auditContract(contractAddress, sourceFilePath) {
     const normalizedAddress = contractAddress.toLowerCase();
     
-    // Double-check with file lock to prevent race conditions
+    // Check if contract is already audited or currently being audited
     // First check: in-memory Set (fast)
     if (this.auditedContracts.has(normalizedAddress)) {
-      return { skipped: true, address: contractAddress };
+      console.log(`   ⏭️  ${contractAddress}: Already audited (in-memory cache) - skipping`);
+      return { skipped: true, address: contractAddress, reason: 'already_audited' };
+    }
+    
+    // Check if contract is currently being audited (prevents concurrent audits)
+    if (this.auditingContracts.has(normalizedAddress)) {
+      console.log(`   ⏭️  ${contractAddress}: Audit already in progress - skipping duplicate request`);
+      return { skipped: true, address: contractAddress, reason: 'audit_in_progress' };
     }
     
     // Second check: file directly (prevents race conditions in parallel processing)
@@ -387,8 +395,13 @@ If no such vulnerability exists, explicitly state:
     if (this.isAudited(contractAddress)) {
       // Contract was found in file, add to Set and skip
       this.auditedContracts.add(normalizedAddress);
-      return { skipped: true, address: contractAddress };
+      console.log(`   ⏭️  ${contractAddress}: Already audited (found in file) - skipping`);
+      return { skipped: true, address: contractAddress, reason: 'already_audited' };
     }
+    
+    // Mark as currently being audited BEFORE starting the audit
+    // This prevents concurrent audits of the same contract (critical race condition protection)
+    this.auditingContracts.add(normalizedAddress);
     
     try {
       
@@ -399,6 +412,8 @@ If no such vulnerability exists, explicitly state:
       if (SETTINGS.ENABLE_PRE_AUDIT_REGEX_CHECK) {
         const patternMatches = this.checkPreAuditPattern(contractSource);
         if (!patternMatches) {
+          // Remove from auditing set since we're skipping
+          this.auditingContracts.delete(normalizedAddress);
           console.log(`   ⏭️  ${contractAddress}: Pre-audit regex check failed - skipping audit (pattern not found)`);
           return { 
             skipped: true, 
@@ -408,6 +423,9 @@ If no such vulnerability exists, explicitly state:
         }
         console.log(`   ✅ ${contractAddress}: Pre-audit regex check passed - pattern found`);
       }
+      
+      // Mark as audited (moved to Set of completed audits)
+      this.auditedContracts.add(normalizedAddress);
       
       const response = await this.client.responses.create({
         model: "gpt-4.1",
@@ -530,6 +548,9 @@ ${idx + 1}. ${issue.title}
         this.statistics.recordAudit(hasVulnerabilities);
       }
       
+      // Remove from auditing set (audit completed successfully)
+      this.auditingContracts.delete(normalizedAddress);
+      
       // No cleanup needed (file content sent directly in message)
       
       return {
@@ -544,6 +565,23 @@ ${idx + 1}. ${issue.title}
     } catch (error) {
       console.error(`   ❌ Audit error: ${error.message?.slice(0, 150) || error}`);
       
+      // Check if it's a rate limit error
+      const isRateLimitError = error.message && (
+        error.message.includes('Rate limit') || 
+        error.message.includes('429') || 
+        error.message.includes('too large')
+      );
+      
+      // For non-rate-limit errors, remove from both Sets to allow retry
+      // Rate limit errors should keep the contract marked to prevent immediate retries
+      if (!isRateLimitError) {
+        // Remove from both Sets to allow retry on next attempt
+        this.auditedContracts.delete(normalizedAddress);
+      }
+      
+      // Always remove from auditing set (audit attempt completed, even if failed)
+      this.auditingContracts.delete(normalizedAddress);
+      
       // Record failed audit
       this.recordAuditResult(contractAddress, false, [], true, error.message);
       
@@ -552,8 +590,7 @@ ${idx + 1}. ${issue.title}
         this.statistics.recordAuditFailure();
       }
       
-      // Check if it's a rate limit error
-      if (error.message && (error.message.includes('Rate limit') || error.message.includes('429') || error.message.includes('too large'))) {
+      if (isRateLimitError) {
         if (error.message.includes('tokens per min')) {
           console.log(`   ⏸️  Rate limit - waiting 60s...`);
         }

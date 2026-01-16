@@ -1,0 +1,31 @@
+Contract Address: 0x0000000000000000000000000000019bc536825c
+Source File: test_0x0000000000000000000000000000019bc536825c.sol
+Audit Date: 2026-01-16T05:10:50.949Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+A critical Arbitrary External Call fund-drain vulnerability exists in the LeverageUp contract via the _swapGenericRoute function, which permits an arbitrary router address and completely user-controlled calldata (passed through SwapParams). An attacker can transfer all contract-held ERC20 tokens or ETH to themselves or malicious contracts using this generic call.
+
+
+Critical Issues Found:
+
+1. Arbitrary External Call in _swapGenericRoute allows draining all contract-held funds
+   Type: Arbitrary External Call – User-Controlled Router and Calldata
+   Function: LeverageUp.leverageUpWithSwap(),DexSwap._swap(),DexSwap._executeSwapStep(),DexSwap._swapGenericRoute()
+   
+   Attack Scenario:
+   An attacker can call leverageUpWithSwap(), passing in a SwapParams array containing an entry with method == GenericRoute. They can craft GenericRouteParams with router set to an arbitrary contract (including their own address or a compliant malicious contract) and data containing function selector calldata to drain contract-held ERC20 tokens (e.g., transfer them out) or, if possible, collect native ETH. Since the contract approves all of its ERC20 balances to the attacker-supplied router address, and then makes a low-level .call to method/data of the attacker's choice, draining all assets is trivial for an attacker.
+   
+   Impact:
+   All ERC20 tokens and potentially ETH held by the contract can be drained by any user via arbitrary approval and external call. This is a complete fund-drain vulnerability.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================
