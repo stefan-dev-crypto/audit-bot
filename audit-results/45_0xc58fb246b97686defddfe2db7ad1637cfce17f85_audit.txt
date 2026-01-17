@@ -1,0 +1,51 @@
+Contract Address: 0xc58fb246b97686defddfe2db7ad1637cfce17f85
+Source File: 16_0xc58fb246b97686defddfe2db7ad1637cfce17f85.sol
+Audit Date: 2026-01-17T13:46:24.249Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+undefined
+
+
+Critical Issues Found:
+
+1. Incorrect Reward Accrual Due to Unchecked Underflow
+   Type: Unchecked Arithmetic/Incorrect Reward Calculation
+   Contract: StakingVault
+   Function: _accrueRewards(address _rewardToken)
+   Line Numbers: StakingVault::_accrueRewards: unaccountedBalance = balanceLastKnown - rewardInfo.balanceAccounted
+   
+   Attack Scenario:
+   In the _accrueRewards(address _rewardToken) function, the variable unaccountedBalance is calculated as 'balanceLastKnown - rewardInfo.balanceAccounted;' However, if rewardInfo.balanceAccounted is greater than balanceLastKnown, this will underflow (in Solidity 0.8+, this reverts). However, prior to the assignment of balanceLastKnown, the actual tracked value is updated in a non-atomic way. Additionally, if the reward token is a token with callbacks, or if the operator is able to force token transfer hooks, the balanceOf(address(this)) can be manipulated to be lower than expected, causing this underflow. Even with underflow revert, this accrual path may cause overall reward loss or contract stalling. More crucially, the calculation for handoutPercentage involves subtractions that can underflow or result in negative values, leading to faulty reward distribution.
+   
+   Impact:
+   A malicious user could manipulate the contract to prevent users from being able to accrue/claim rewards, or prevent any further progress of rewards distribution, locking tokens and potentially freezing rewards for all participants. In certain token implementations permitting reduce-balance attacks, theft or denial of rewards is possible.
+   
+   Recommended Fix:
+   N/A
+
+
+2. ERC20 Token Misuse in Reward Mechanism Allows Theft if Malicious ERC20 Provided
+   Type: Untrusted ERC20 Reward Token Attack
+   Contract: StakingVault
+   Function: claimRewards, addRewardToken
+   Line Numbers: addRewardToken: require, rewardTokens.add, claimRewards: for loop, SafeERC20.safeTransfer
+   
+   Attack Scenario:
+   The addRewardToken function allows any ERC20-compliant contract address to be registered as a reward. If the owner adds a malicious ERC20 that, for example, has a transferFrom or transfer implementation that maliciously grants itself allowances, drains vault funds, or interacts with external state (reentrancy or self-destruct via fallback), an attacker can drain the reward or vault funds via claimRewards. While the owner is required to add the malicious reward, the critical impact is that users may have claimable balances for such malicious tokens and subsequently lose their native assets or have their balances drained upon claiming.
+   
+   Impact:
+   General users can be induced (via UI or deception) to call claimRewards on malicious ERC20 reward token contracts, resulting in a loss of inventory from the vault, theft of native tokens, or drainage triggered via ERC20 code execution. This is a downstream risk but can result in lost funds for users.
+   
+   Recommended Fix:
+   N/A
+
+
+
+
+
+==============================================================================

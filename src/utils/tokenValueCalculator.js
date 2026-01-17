@@ -78,20 +78,47 @@ export async function fetchTokenPrices(chainId, tokenAddresses) {
  */
 export async function getTokenBalance(tokenAddress, contractAddress, provider) {
   try {
+    // Check if token address has contract code (not a contract = can't be ERC20)
+    const code = await provider.getCode(tokenAddress);
+    if (!code || code === '0x') {
+      // Not a contract, skip silently
+      return null;
+    }
+    
     const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
     
-    // Get balance and decimals in parallel
-    const [balance, decimals] = await Promise.all([
-      tokenContract.balanceOf(contractAddress),
-      tokenContract.decimals()
-    ]);
+    // Get balance and decimals with individual error handling
+    let balance = null;
+    let decimals = null;
+    
+    try {
+      balance = await tokenContract.balanceOf(contractAddress);
+    } catch (balanceError) {
+      // Contract doesn't implement balanceOf or failed to call
+      // Skip silently (non-ERC20 token or proxy issue)
+      return null;
+    }
+    
+    try {
+      decimals = await tokenContract.decimals();
+    } catch (decimalsError) {
+      // Contract doesn't implement decimals or failed to call
+      // Skip silently (non-ERC20 token or proxy issue)
+      return null;
+    }
+    
+    // Validate results
+    if (balance === null || decimals === null) {
+      return null;
+    }
     
     return {
       balance: balance.toString(),
       decimals: Number(decimals)
     };
   } catch (error) {
-    console.error(`Error getting token balance for ${tokenAddress}:`, error.message);
+    // Silently skip non-ERC20 tokens or contracts that can't be queried
+    // Don't log errors for common cases like non-ERC20 contracts
     return null;
   }
 }
