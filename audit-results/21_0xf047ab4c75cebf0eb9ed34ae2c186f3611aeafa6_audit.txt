@@ -1,0 +1,66 @@
+Contract Address: 0xf047ab4c75cebf0eb9ed34ae2c186f3611aeafa6
+Source File: 140_0xf047ab4c75cebf0eb9ed34ae2c186f3611aeafa6.sol
+Audit Date: 2026-01-17T10:14:48.923Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+undefined
+
+
+Critical Issues Found:
+
+1. Lack of Proper Balance Checks on Withdrawals (Underflow Attack)
+   Type: Unchecked arithmetic allowing underflow in user balance
+   Contract: Main contract (contract name not provided, assumed to be the central staking contract implementing withdraw)
+   Function: withdraw
+   Line Numbers: withdraw(address _token, uint256 _amount) (balance[_token][msg.sender] -= _amount; -- no check if balance is sufficient)
+   
+   Attack Scenario:
+   A user can call withdraw() with _amount greater than their stored balance, causing the subtraction to underflow and setting their balance to MAX_UINT. Subsequently, the contract attempts to transfer an excessive amount of tokens, potentially draining all tokens from the contract if the user was the first to withdraw.
+   
+   Impact:
+   Loss of all tokens held by the contract for any _token due to underflow exploitation.
+   
+   Recommended Fix:
+   N/A
+
+
+2. Reentrancy risk in withdraw and migrate (if used with malicious token contracts)
+   Type: Potential reentrancy via external ERC20 safeTransfer/approve/migrate calls
+   Contract: Main contract
+   Function: withdraw, _migrate
+   Line Numbers: withdraw: balance[_token][msg.sender] -= _amount; then IERC20(_token).safeTransfer(...), _migrate: balance[_tokens[i]][_user] = 0; then IERC20(_tokens[i]).approve(...), external migrator.migrate(...)
+   
+   Attack Scenario:
+   If an ERC20 token used by the contract contains a callback with reentrancy, a malicious token could exploit interleaved state to double-withdraw or disrupt contract state, especially since balance is written before transfer, enabling creative theft patterns.
+   
+   Impact:
+   Potential theft or disruption allowing draining of user/contract assets if combined with malicious tokens.
+   
+   Recommended Fix:
+   N/A
+
+
+
+
+Critical Business Logic Flaws Found:
+
+1. Improper Handling of Zero Balances in _migrate()
+   Type: Zero balance check reversed, can never migrate assets
+   Contract: Main contract
+   Function: _migrate
+   Line Numbers: _migrate: for(uint256 i; i < length; ++i){ if (balance[_tokens[i]][_user] == 0) revert DuplicateToken(); ... }
+   
+   Attack Scenario:
+   if (balance[_tokens[i]][_user] == 0) revert DuplicateToken(); prevents migration of assets for users with a positive balance, requiring the balance to be zero to migrate. This breaks migration entirely, allowing user funds to be locked and unclaimable.
+   
+   Impact:
+   User funds become locked and un-migratable, which could be griefed by third parties.
+
+
+
+==============================================================================

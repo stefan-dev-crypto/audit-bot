@@ -1,0 +1,66 @@
+Contract Address: 0xc6a22cc9acd40b4f31467a3580d4d69c3387f349
+Source File: 346_0xc6a22cc9acd40b4f31467a3580d4d69c3387f349.sol
+Audit Date: 2026-01-17T11:13:30.978Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+undefined
+
+
+Critical Issues Found:
+
+1. Incorrect calculation of released amount allows unbacked minting of veLTX tokens
+   Type: Unbacked Token Mint / Fund Stealing via logic error
+   Contract: LatticeGovernanceToken
+   Function: lock
+   Line Numbers: lock (approx lines 56-97)
+   
+   Attack Scenario:
+   A malicious user can call lock(...) with a large _lockupTime and a non-zero lockupPoints[_lockupTime], but since _amountReleased is calculated as '_amount * lockupPoints[_lockupTime]', if lockupPoints[_lockupTime] > 1, the contract will mint more veLTX than the amount locked (e.g., if _amount = 100 and lockupPoints[_lockupTime] = 10, 1000 veLTX will be minted), which is not backed by LTX deposited and can be used for governance or other attacks.
+   
+   Impact:
+   Users can mint veLTX tokens at unfair ratios and potentially steal governance power or manipulate veLTX-related logic, resulting in loss of value for honest users or the protocol.
+   
+   Recommended Fix:
+   N/A
+
+
+2. Owner can set arbitrary lockupPoints to enable front-running inflation attacks
+   Type: Owner Manipulation / Attack Surface
+   Contract: LatticeGovernanceToken
+   Function: setLockupPoint, lock
+   Line Numbers: setLockupPoint (approx lines 123-138, 141-154), lock (approx lines 56-97)
+   
+   Attack Scenario:
+   The contract owner can call setLockupPoint() with large values (e.g. 1e18) to cause lock() to mint unbounded amounts of veLTX compared to LTX locked by any user who acts quickly, enabling the owner to front-run and mint excessive veLTX or enable colluding users to do so, draining economic or governance value from the protocol.
+   
+   Impact:
+   Holders of veLTX can be diluted, the protocol's governance can be taken over, trust and funds can be lost.
+   
+   Recommended Fix:
+   N/A
+
+
+
+
+Critical Business Logic Flaws Found:
+
+1. Incorrect Lockup Release Ratio Arithmetic Could Enable Extraction Beyond Locked Principal
+   Type: Business Logic: Arithmetic/Ratio
+   Contract: LatticeGovernanceToken
+   Function: lock
+   Line Numbers: lock (approx lines 56-97)
+   
+   Attack Scenario:
+   Suppose lockupPoints are set such that lockupPoints[_lockupTime] > 1 (i.e. 150%, 200%), then users can mint more veLTX than what backs the actual locked LTX. On unlock, they only get their principal back, but the veLTX minted can have governance/economic value, fundamentally breaking system tokenomics.
+   
+   Impact:
+   Unlimited veLTX extracted for a known LTX locked, resulting in value/asset theft at the economic/governance/protocol level.
+
+
+
+==============================================================================

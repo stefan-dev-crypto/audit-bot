@@ -1,0 +1,98 @@
+Contract Address: 0xe3985e6b61b814f7cdb188766562ba71b446b46d
+Source File: 218_0xe3985e6b61b814f7cdb188766562ba71b446b46d.sol
+Audit Date: 2026-01-17T10:38:54.172Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+undefined
+
+
+Critical Issues Found:
+
+1. Vault Allowance Arbitrary Decrement by Any User
+   Type: Broken Access Control
+   Contract: MAYAChain_Router
+   Function: transferOut
+   Line Numbers: 55-69
+   
+   Attack Scenario:
+   Any user can call transferOut and transfer assets from any vault by specifying the vault address as 'msg.sender', as there is no check that ensures only the designated vault owner or an authorized entity can manipulate their allowance.
+   
+   Impact:
+   A malicious user can drain allowances of arbitrary vaults, potentially stealing all ERC20 tokens managed by the contract.
+   
+   Recommended Fix:
+   N/A
+
+
+2. _vaultAllowance Arbitrary Decrement via _adjustAllowances
+   Type: Broken Access Control
+   Contract: MAYAChain_Router
+   Function: transferAllowance, returnVaultAssets, _adjustAllowances
+   Line Numbers: 43-53, 98-105, 91-96
+   
+   Attack Scenario:
+   Any user can call transferAllowance or returnVaultAssets and decrease other users' allowances for arbitrary vaults, since _adjustAllowances uses msg.sender as the source, regardless of actual vault ownership, enabling authorization bypass.
+   
+   Impact:
+   An attacker can burn or move allowances for vaults they do not control, impeding legitimate withdrawals or transferring ERC20 token allowance to their own vault.
+   
+   Recommended Fix:
+   N/A
+
+
+3. Incorrect Ether Return Allows Refund to Attacker
+   Type: Logic Error
+   Contract: MAYAChain_Router
+   Function: transferOut
+   Line Numbers: 61-65
+   
+   Attack Scenario:
+   In transferOut, if the 'to.send' call fails (e.g., if 'to' is a contract that reverts on receiving Ether), the refund is sent to 'msg.sender'. This allows an attacker to revert the transfer and receive an unintended refund.
+   
+   Impact:
+   Attacker receives Ether back even though the intended recipient never got the funds, potentially enabling abuse with repeated calls and causing loss of funds.
+   
+   Recommended Fix:
+   N/A
+
+
+4. ERC20 Approval to Arbitrary Router Address
+   Type: Arbitrary Approval
+   Contract: MAYAChain_Router
+   Function: _routerDeposit
+   Line Numbers: 99-101
+   
+   Attack Scenario:
+   The _routerDeposit internal function approves any router address provided as an argument, which could be an attacker-controlled contract. This may trick users into giving unlimited ERC20 approval to malicious contracts.
+   
+   Impact:
+   Malicious actor could siphon ERC20 tokens from the contract by exploiting the approved allowance.
+   
+   Recommended Fix:
+   N/A
+
+
+
+
+Critical Business Logic Flaws Found:
+
+1. Lack of Ownership or Authorization Checks for Vault Operations
+   Type: Authorization Flaw
+   Contract: MAYAChain_Router
+   Function: transferOut, transferAllowance, returnVaultAssets
+   Line Numbers: Global Access Pattern
+   
+   Attack Scenario:
+   General external users are able to arbitrarily modify, transfer, or drain vault allowances because the contract does not check if msg.sender is indeed the owner/operator of the vault.
+   
+   Impact:
+   Loss of all user and vault funds due to external attacker being able to drain or transfer arbitrary ERC20 allowances and assets.
+
+
+
+==============================================================================

@@ -1,0 +1,82 @@
+Contract Address: 0xb4ff7412f08c22d7381885e8bda9ee9825092fd1
+Source File: 251_0xb4ff7412f08c22d7381885e8bda9ee9825092fd1.sol
+Audit Date: 2026-01-17T10:46:11.354Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+undefined
+
+
+Critical Issues Found:
+
+1. Lack of Limit Check Before Mint
+   Type: Bypass of Minting Cap / Enforced Supply Limit
+   Contract: StablecoinBridge
+   Function: _mint
+   Line Numbers: 50-57
+   
+   Attack Scenario:
+   A user can mint tokens that exceed the defined limit by calling multiple mint/mintTo transactions. The 'limit' enforcement only happens after minting in _mint(). As a result, some amount of dEURO can be minted above the cap before the transaction is reverted, violating the intended supply limit and enabling creation of excess tokens which could be sold or traded, draining value unexpectedly.
+   
+   Impact:
+   dEURO supply may temporarily or permanently exceed the intended cap, risking systemic loss of value and trust.
+   
+   Recommended Fix:
+   N/A
+
+
+2. Reversible Payment on Failed Mint
+   Type: Token Loss via Reverted Transaction with Side Effects
+   Contract: StablecoinBridge
+   Function: mint, mintTo
+   Line Numbers: 41, 45-49
+   
+   Attack Scenario:
+   In mintTo(), the user’s EUR tokens are transferred to the contract before the _mint() function is called. If _mint() reverts (due to limit or expiration errors), the EUR transferred from msg.sender is not returned, causing a permanent loss for the user.
+   
+   Impact:
+   User EUR tokens are lost without minting dEURO, leading to direct and unrecoverable financial loss.
+   
+   Recommended Fix:
+   N/A
+
+
+3. Unrestricted dEURO Burning for Asset Withdrawal
+   Type: Arbitrary Asset Withdrawal
+   Contract: StablecoinBridge
+   Function: burnAndSend
+   Line Numbers: 61-67
+   
+   Attack Scenario:
+   Any user can call burnAndSend, burning their dEURO and forcing the contract to send EUR to an arbitrary target. There are no checks that limit who can receive the EUR—allowing funds to be routed anywhere, including third-party contract exploits or unintended receiver addresses.
+   
+   Impact:
+   Facilitates laundering/fraudulent asset flows or draining of EUR in cases of dEURO theft.
+   
+   Recommended Fix:
+   N/A
+
+
+
+
+Critical Business Logic Flaws Found:
+
+1. Incorrect Decimals Handling in _convertAmount Function
+   Type: Rounding and Amount Precision Loss (Decimal Conversion Fault)
+   Contract: StablecoinBridge
+   Function: _convertAmount
+   Line Numbers: 74-78
+   
+   Attack Scenario:
+   Decimal conversion uses integer division during scaling down (fromDecimals > toDecimals), truncating values. Small amounts may be rounded to zero, letting users lose funds during conversion. Repeated operations amplify loss or manipulation.
+   
+   Impact:
+   User assets may be lost due to poor accounting on conversion, or attackers may exploit rounding in edge cases.
+
+
+
+==============================================================================

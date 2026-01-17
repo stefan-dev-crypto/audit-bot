@@ -1,0 +1,82 @@
+Contract Address: 0xee6a649aa3766bd117e12c161726b693a1b2ee20
+Source File: 127_0xee6a649aa3766bd117e12c161726b693a1b2ee20.sol
+Audit Date: 2026-01-17T10:11:24.289Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+undefined
+
+
+Critical Issues Found:
+
+1. Broken Constructor Due to Syntax/Early Termination
+   Type: Critical Constructor/Control Flow Breakdown
+   Contract: Staking
+   Function: constructor
+   Line Numbers: 44-54
+   
+   Attack Scenario:
+   The constructor contains broken else/return blocks, causing the contract to fail deployment on-chain and preventing initialization of stakingToken. If deployed, state variables like stakingToken would remain unset (zero address), or the contract's bytecode may not even be valid.
+   
+   Impact:
+   Users who send funds to the contract could lose their funds forever, as stakingToken is never initialized and all token transfer functions will revert or misbehave, potentially resulting in a token theft vector (zero address/other unintended recipient).
+   
+   Recommended Fix:
+   N/A
+
+
+2. Unrestricted subtraction in moveVotingPower leads to potential underflow
+   Type: Unchecked Arithmetic
+   Contract: Staking
+   Function: moveVotingPower
+   Line Numbers: 75-78
+   
+   Attack Scenario:
+   Calling moveVotingPower with _amount greater than votingPower[_from] subtracts without checking, causing underflow, which is reverted in Solidity >=0.8.0. This could cause some attack surfaces to revert business logic or intentionally disrupt votingPower state. While this won't directly cause loss of assets due to SafeERC20 usage, it may impact protocol accounting in a critical way.
+   
+   Impact:
+   Could disrupt votingPower tracking, break snapshot/accounting logic, potentially result in user confusion, or mal-functions in related integrations relying on votingPower, but does not directly allow end-user to steal staked funds.
+   
+   Recommended Fix:
+   N/A
+
+
+3. Staking to zero address via SafeERC20 interaction may result in permanent token loss
+   Type: Token Sink (Zero Address Transfers)
+   Contract: Staking
+   Function: stake
+   Line Numbers: 172-182
+   
+   Attack Scenario:
+   If the constructor is broken, stakingToken is never set and remains as address(0). When a user attempts to stake, stakingToken.safeTransferFrom() will transfer tokens to the zero address (if SafeERC20 allows), permanently burning tokens due to _stakingToken being address(0).
+   
+   Impact:
+   All staker tokens may be lost forever to the zero-address (burned). This constitutes stolen/lost funds on a critical scale.
+   
+   Recommended Fix:
+   N/A
+
+
+
+
+Critical Business Logic Flaws Found:
+
+1. Delegate Function Allows Arbitrary Transfer of Voting Power Without Approval
+   Type: Unrestricted Voting Power Change
+   Contract: Staking
+   Function: delegate
+   Line Numbers: 81-101
+   
+   Attack Scenario:
+   Any user can repeatedly call delegate on their own stake, changing the delegate address without consent from the recipient 'to'. Voting power can thus be forcibly delegated without recipient's approval. In conjunction with ecosystem integrations where votingPower confers privileges or rights, this could be used to manipulate governance or airdrop distribution unfairly.
+   
+   Impact:
+   Loss of intended voting power for recipients; manipulation of governance processes or ecosystem balance.
+
+
+
+==============================================================================

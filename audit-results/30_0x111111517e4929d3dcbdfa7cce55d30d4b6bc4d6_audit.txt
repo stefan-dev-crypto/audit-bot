@@ -1,0 +1,50 @@
+Contract Address: 0x111111517e4929d3dcbdfa7cce55d30d4b6bc4d6
+Source File: 234_0x111111517e4929d3dcbdfa7cce55d30d4b6bc4d6.sol
+Audit Date: 2026-01-17T10:43:18.911Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+undefined
+
+
+Critical Issues Found:
+
+1. Uncapped Inflation via convertToV2
+   Type: Unlimited Minting/Inflation
+   Contract: IchiV2
+   Function: convertToV2
+   Line Numbers: 91-108
+   
+   Attack Scenario:
+   A malicious (or careless) external user calls convertToV2 repeatedly, each time transferring ICHI V1 tokens into the contract. There is no upper-bound or limit to how many ICHI V2 tokens can be minted via this path. Each call increases totalSupply unbounded, rendering the mint cap in 'mint()' irrelevant for supply control. If the V1 token (ichiV1) is malicious, unbacked, or another contract or token that can be minted at will, the attacker can inflate the V2 supply infinitely, diluting all honest holders.
+   
+   Impact:
+   Severe inflation/dilution of ICHI V2 token and collapse of token value; all existing holders’ shares can be made worthless.
+   
+   Recommended Fix:
+   N/A
+
+
+
+
+Critical Business Logic Flaws Found:
+
+1. Lack of Validation on ICHI V1 Token Address
+   Type: Trust Assumption / Initialization
+   Contract: IchiV2
+   Function: constructor, convertToV2, convertToV1
+   Line Numbers: 32, 91-137
+   
+   Attack Scenario:
+   Deployer can initialize the contract with a malicious or non-standard ERC20 token as ichiV1. In such a situation, an attacker or the deployer could implement ICHI V1 with a backdoor mint, transfer, or approve function, allowing arbitrary conversion to V2 with worthless or self-created tokens, breaking the integrity and value backing of ICHI V2.
+   
+   Impact:
+   V2 token becomes unbacked or can be created from nothing using a malicious ICHI V1, leading to all user funds being effectively stolen.
+
+
+
+==============================================================================

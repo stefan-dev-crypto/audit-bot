@@ -1,0 +1,66 @@
+Contract Address: 0x7842186cdd11270c4af8c0a99a5e0589c7f249ce
+Source File: 27_0x7842186cdd11270c4af8c0a99a5e0589c7f249ce.sol
+Audit Date: 2026-01-17T09:38:18.185Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+undefined
+
+
+Critical Issues Found:
+
+1. Arbitrary FEI Minting Without Authorization In SimpleFeiDaiPSM
+   Type: Missing Access Control on Mint
+   Contract: SimpleFeiDaiPSM
+   Function: mint
+   Line Numbers: SimpleFeiDaiPSM: function mint() (lines top-level)
+   
+   Attack Scenario:
+   Any external user can call SimpleFeiDaiPSM.mint(), which calls FEI.mint(to, amountFeiOut). However, Fei.mint() in the FEI contract is gated by onlyMinter, meaning only authorized minters via CoreRef.can call it. Since SimpleFeiDaiPSM is not checked in the provided code to be a valid minter, and deployers may forget to set its status in Core, users can lose DAI sent in if SimpleFeiDaiPSM is not a minter (DAI is transferred in, but no FEI is minted/returned). If the contract is a registered minter, the contract allows unlimited minting, leading to DAI draining for FEI minting at a 1:1 rate.
+   
+   Impact:
+   Loss of user DAI without returned FEI; or infinite FEI inflation if minter role is granted.
+   
+   Recommended Fix:
+   N/A
+
+
+2. Arbitrary DAI Redemption Without Limits in SimpleFeiDaiPSM
+   Type: No Mint/Redeem Controls or Slippage Checks
+   Contract: SimpleFeiDaiPSM
+   Function: redeem
+   Line Numbers: SimpleFeiDaiPSM: function redeem() (lines top-level)
+   
+   Attack Scenario:
+   Any user can call redeem() to swap FEI for DAI at a fixed ratio, regardless of reserves in the contract. If DAI is not present in the contract, the call to DAI.safeTransfer() will revert, causing redemption to fail. However, if the system intends for this contract to mint DAI synthetically or expects to always have enough DAI, this exposes it to draining all DAI in the contract via repeated redemption, limited only by the FEI that can be supplied.
+   
+   Impact:
+   Complete draining of all DAI liquidity present in the contract by any user with FEI; no boundaries or checks to slow or control drains.
+   
+   Recommended Fix:
+   N/A
+
+
+
+
+Critical Business Logic Flaws Found:
+
+1. No Slippage, Fee, or Reserve Checks on Mint/Redeem
+   Type: Unbounded Mint/Redeem Rate Risk
+   Contract: SimpleFeiDaiPSM
+   Function: mint, redeem
+   Line Numbers: SimpleFeiDaiPSM: mint() and redeem() functions
+   
+   Attack Scenario:
+   A user can repeatedly mint FEI for DAI or redeem FEI for DAI at a hardcoded 1:1 ratio, regardless of market conditions or actual peg. Invariant (such as price peg, AMM reserves, or reference price) is not checked. Attackers can arbirtrage against off-peg markets, causing unbounded protocol losses.
+   
+   Impact:
+   Protocol or other users can lose funds due to unfavorable arbitrage. If the FEI-DAI peg is significantly different on the open market, attackers can drain DAI or mint worthless FEI.
+
+
+
+==============================================================================

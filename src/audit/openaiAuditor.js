@@ -27,7 +27,7 @@ export class OpenAIAuditor {
     this.systemPrompt = `You are a senior Solidity smart contract security auditor.
 Your task is to determine whether a GENERAL EXTERNAL USER (with NO owner, admin, governance, or privileged role)
 
-You are given a Solidity contract source code and you need to audit it for critical vulnerabilities and critical bussiness logic flaws to lose money or assets.
+You are given a Solidity contract source code and you need to audit it for critical vulnerabilities and critical bussiness logic flaws related to be stolen money or assets from the contract and user by general external user.
 Don't include Reentrancy, Denial of Service, or other non-critical vulnerabilities not related to losing money or assets.
 Don't include bussiness logic flaws not related to losing money or assets.
 

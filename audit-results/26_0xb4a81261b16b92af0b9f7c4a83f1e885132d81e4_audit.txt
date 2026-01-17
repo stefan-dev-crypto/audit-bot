@@ -1,0 +1,50 @@
+Contract Address: 0xb4a81261b16b92af0b9f7c4a83f1e885132d81e4
+Source File: 179_0xb4a81261b16b92af0b9f7c4a83f1e885132d81e4.sol
+Audit Date: 2026-01-17T10:27:41.075Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+undefined
+
+
+Critical Issues Found:
+
+1. Deposit front-running allows excess share minting and asset theft
+   Type: Critical Share Inflation (Deposit Front-running)
+   Contract: BuryShib
+   Function: enter
+   Line Numbers: 14-31
+   
+   Attack Scenario:
+   Attacker triggers enter() with a certain _amount, contract mints xSHIB based on current ratio, but the underlying tokens are only transferred *after* minting. An attacker front-runs a large withdrawal, allowing them to mint more shares than they should, effectively stealing SHIB value from other participants.
+   
+   Impact:
+   Attacker can obtain more xSHIB than is fairly backed by SHIB, enabling draining of the vault and loss of user assets.
+   
+   Recommended Fix:
+   N/A
+
+
+
+
+Critical Business Logic Flaws Found:
+
+1. Incorrect order of mint and transfer in deposit results in incorrect share valuation
+   Type: Mint-then-transfer leads to value mis-accounting
+   Contract: BuryShib
+   Function: enter
+   Line Numbers: 14-31
+   
+   Attack Scenario:
+   Since the user’s SHIB is not transferred to the contract until after shares are minted, the calculation of how many shares to mint is always based on outdated vault state. Any manipulation such as quick withdrawals (leave) before a deposit, or intentional deposit sandwiched between leave/enter can be exploited to gain extra shares or siphon value.
+   
+   Impact:
+   Users can receive more xSHIB per SHIB sent, or intentionally manipulate state for profit, resulting in a loss of assets for the contract and other users.
+
+
+
+==============================================================================

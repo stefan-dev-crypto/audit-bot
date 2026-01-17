@@ -1,0 +1,82 @@
+Contract Address: 0x6bc48075f283e1c2b048e94765c3398b5b057497
+Source File: 312_0x6bc48075f283e1c2b048e94765c3398b5b057497.sol
+Audit Date: 2026-01-17T11:02:56.729Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+undefined
+
+
+Critical Issues Found:
+
+1. Unrestricted ERC20 Deployment with Mint/Burn Control
+   Type: Unauthorized asset creation and minting
+   Contract: Hyperion
+   Function: deployERC20, deployERC20WithSupply
+   Line Numbers: Hyperion: function deployERC20(...), Hyperion: function deployERC20WithSupply(...)
+   
+   Attack Scenario:
+   Any external user can call deployERC20 or deployERC20WithSupply, which will deploy a new ERC20 (HeliosERC20) contract, marking the token as Helios native. Deployed tokens give full mint and burn control to the contract's deployer (the msg.sender of deployERC20), allowing malicious users to deploy arbitrary tokens that can be freely minted and burned by themselves, then pass these tokens through bridge logic and other system components.
+   
+   Impact:
+   Malicious users can mint unbacked tokens, disrupt accounting, or enable unauthorized withdrawals if the system assumes deployed tokens are trusted or native.
+   
+   Recommended Fix:
+   N/A
+
+
+2. Unrestricted Marking of Helios Native Tokens
+   Type: Arbitrary asset whitelisting
+   Contract: Hyperion
+   Function: deployERC20, deployERC20WithSupply
+   Line Numbers: Hyperion: function deployERC20(...), Hyperion: function deployERC20WithSupply(...)
+   
+   Attack Scenario:
+   Any external user, by calling deployERC20 or deployERC20WithSupply, can mark a freshly deployed token contract as isHeliosNativeToken=true. This impacts batch and burn/mint logic for these tokens in the bridge. A malicious user can quickly fill the mapping with arbitrary or malicious tokens, potentially confusing the system and enabling unbacked supply through improper handling.
+   
+   Impact:
+   Unauthorized or malicious tokens may be treated as legitimate native bridge assets, creating attack vectors for bypassing bridge controls and flooding the mapping.
+   
+   Recommended Fix:
+   N/A
+
+
+3. Deployment of ERC20 Tokens with msg.sender as Mint/Burn Owner
+   Type: Unrestricted privileged token function control
+   Contract: HeliosERC20
+   Function: mint, burn (via unrestricted ownership due to public deployment functions in Hyperion)
+   Line Numbers: HeliosERC20: functions mint(...) and burn(...)
+   
+   Attack Scenario:
+   Anyone can deploy a token via deployERC20 or deployERC20WithSupply, receiving the mint/burn role over that token. This is a critical risk if the protocol, bridge, or external users assume all 'Helios native' tokens are trustworthy. The deployer can mint infinite tokens to themselves (and others), then interact with bridge withdraw/batch logic, potentially extracting value or inducing inflation/deflation attacks.
+   
+   Impact:
+   Serious risk of asset supply inflation, system trust erosion, or direct theft of assets by leveraging unlimited minting power.
+   
+   Recommended Fix:
+   N/A
+
+
+
+
+Critical Business Logic Flaws Found:
+
+1. Incorrect Native Token Designation for Arbitrary Tokens
+   Type: Asset source validation failure
+   Contract: Hyperion
+   Function: deployERC20, deployERC20WithSupply
+   Line Numbers: Hyperion: functions deployERC20(...) and deployERC20WithSupply(...)
+   
+   Attack Scenario:
+   By calling deployERC20 or deployERC20WithSupply, a user causes arbitrary tokens to be flagged as Helios native, breaking important business logic assumptions that only trusted assets are eligible for mint/burn bridging paths. Attacker can create tokens with similar symbols/names as real assets, confusing users/bridges.
+   
+   Impact:
+   Users could be tricked into using fake tokens, tokens might be erroneously considered as valid bridge assets, and asset mapping/whitelisting becomes meaningless.
+
+
+
+==============================================================================

@@ -1,0 +1,82 @@
+Contract Address: 0xf4da885744b6f3107ce13d2d30383dce2eea6c85
+Source File: 74_0xf4da885744b6f3107ce13d2d30383dce2eea6c85.sol
+Audit Date: 2026-01-17T09:53:28.144Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+undefined
+
+
+Critical Issues Found:
+
+1. Direct theft of all user staked tokens and rewards via owner-triggered migration
+   Type: Critical Owner-Rug Function
+   Contract: NodeStaking
+   Function: migrate
+   Line Numbers: 89-106
+   
+   Attack Scenario:
+   The contract's owner can call the migrate() function at any time, transferring all staked tokens and the entire contract balance to an arbitrary address. This can result in the owner stealing all user deposits and rewards.
+   
+   Impact:
+   Total loss of all user staked funds and rewards.
+   
+   Recommended Fix:
+   N/A
+
+
+2. Critical miscalculation and manipulation in reward calculation
+   Type: Business Logic/Critical Arithmetic Flaw
+   Contract: NodeStaking
+   Function: calculateReward
+   Line Numbers: 224-235
+   
+   Attack Scenario:
+   calculateReward() uses the total ETH balance of the contract as the pool for rewards, directly dependent on the contract's balance. Any user or attacker can send ETH to the contract, artificially increasing everyone's rewards, or use selfdestruct to forcibly send ETH. Malicious users could inflate rewards and withdraw unearned ETH, leading to massive ETH losses for the contract.
+   
+   Impact:
+   Any user can drain arbitrary amounts of ETH from the contract unrelated to actual staking activity, resulting in ETH loss for the platform or other users.
+   
+   Recommended Fix:
+   N/A
+
+
+3. Infinite reward claim due to public ETH inflow (selfdestruct/forceSend)
+   Type: Critical Asset Drain via Arbitrary ETH funding
+   Contract: NodeStaking
+   Function: claimRewards, unstake, earlyUnstake, calculateReward
+   Line Numbers: 183-204, 120-153, 154-181, 224-235
+   
+   Attack Scenario:
+   Anyone can force ETH into the contract (via selfdestruct), which causes rewards for all users to inflate. Attackers can create many entries and rapidly claim outsized ETH rewards, draining the contract's ETH.
+   
+   Impact:
+   Uncontrolled and unlimited ETH loss from the contract.
+   
+   Recommended Fix:
+   N/A
+
+
+
+
+Critical Business Logic Flaws Found:
+
+1. Reward pool is not decoupled from arbitrary contract ETH balance, enabling unlimited manipulation by non-user or attacker
+   Type: Reward Pool Accounting Flaw
+   Contract: NodeStaking
+   Function: calculateReward, claimRewards, unstake, earlyUnstake
+   Line Numbers: 224-235, 183-204, 120-153, 154-181
+   
+   Attack Scenario:
+   Reward calculation does not track actual distributed/allocated rewards, but simply relies on contract ETH balance. If ETH is withdrawn (via migrate or other owner operations) or additional ETH is deposited (by anyone via receive or selfdestruct), user rewards are affected regardless of provenance, and attacker can steal or manipulate payouts.
+   
+   Impact:
+   Unpredictable, manipulatable, and vulnerable to both theft and denial of rewards. Serious risk to integrity of staking and reward ecosystem.
+
+
+
+==============================================================================

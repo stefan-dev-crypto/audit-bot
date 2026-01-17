@@ -1,0 +1,66 @@
+Contract Address: 0xf7a0383750fef5abace57cc4c9ff98e3790202b3
+Source File: 215_0xf7a0383750fef5abace57cc4c9ff98e3790202b3.sol
+Audit Date: 2026-01-17T10:37:44.659Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+undefined
+
+
+Critical Issues Found:
+
+1. tBONE token can be minted at zero cost by ordering of external token transfer logic
+   Type: Incorrect calculation of share minting due to using stale contract balance
+   Contract: BuryBone
+   Function: enter
+   Line Numbers: 15-30
+   
+   Attack Scenario:
+   An attacker calls enter() with any non-zero _amount when the contract holds a prior BONE balance (from, e.g., self-transfer or accidental deposit). Since bone.balanceOf(address(this)) reflects this previous BONE, the attacker receives a disproportionate number of tBONE shares for their deposit, allowing them to drain tBONE from legitimate stakers or enable later BONE theft on exit.
+   
+   Impact:
+   Loss of user funds; attacker can drain a large share of BONE with minimal or single deposit.
+   
+   Recommended Fix:
+   N/A
+
+
+2. BONE is transferred after minting, allowing under-collateralized tBONE minting
+   Type: State-inconsistency due to sequence of actions and externally calling tokens with transferFrom after minting
+   Contract: BuryBone
+   Function: enter
+   Line Numbers: 27-30
+   
+   Attack Scenario:
+   A user calls enter, tBONE is minted before the transferFrom call. If transferFrom fails, tokens have already been minted. If BONE token has a transferFrom with a non-standard behavior (reverts/does not actually transfer), the tBONE contract mints shares without BONE being actually deposited.
+   
+   Impact:
+   Direct loss/theft of value; tBONE can be issued without actual BONE backing.
+   
+   Recommended Fix:
+   N/A
+
+
+
+
+Critical Business Logic Flaws Found:
+
+1. Initial tBONE minting disregards prior BONE contract balance
+   Type: Incorrect collateral calculation on first user/deposit.
+   Contract: BuryBone
+   Function: enter
+   Line Numbers: 18-21
+   
+   Attack Scenario:
+   An attacker 'seeds' the contract with BONE before any legitimate staker deposits (via self-donation/accidental transfer), then calls enter(). The contract mints the attacker full amount of tBONE for minimal or even zero deposit, as totalShares == 0 gate allows full minting against pre-existing BONE, letting the attacker later drain BONE meant for actual stakers.
+   
+   Impact:
+   Permanent loss of BONE to attacker; subsequent stakers are left with worthless tBONE.
+
+
+
+==============================================================================

@@ -1,0 +1,66 @@
+Contract Address: 0x810353b95a0a7ac0a480ad4364e5dfe5ad58b857
+Source File: 304_0x810353b95a0a7ac0a480ad4364e5dfe5ad58b857.sol
+Audit Date: 2026-01-17T11:01:12.655Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+undefined
+
+
+Critical Issues Found:
+
+1. Unbounded loop in withdrawEarning allows withdrawal of more than earned amount and OOG attacks
+   Type: Unrestricted Withdrawal / Integer Underflow
+   Contract: RewardVesting
+   Function: withdrawEarning
+   Line Numbers: 93-136
+   
+   Attack Scenario:
+   A user can call withdrawEarning with a large amount that exceeds their available earnings. The unguarded loop and arithmetic can allow the subtraction to underflow the user's balance, enabling withdrawal of more assets than earned. The lack of proper array length checks may also enable a Denial of Service (DoS) by causing out-of-gas failures (although DoS is not the focus, withdrawal of excess funds is).
+   
+   Impact:
+   Funds may be withdrawn by users in excess of their balances, leading to direct theft of contract assets and rewards.
+   
+   Recommended Fix:
+   N/A
+
+
+2. Token address can be set only once without verification of compatibility
+   Type: Initialization/Upgrade Risk
+   Contract: RewardVesting
+   Function: initialize
+   Line Numbers: 62-67
+   
+   Attack Scenario:
+   The reward token is initialized via an external function `initialize`, only callable once, without any ERC20 interface verification or upgrade path. Malicious governance can initialize a malicious token contract that allows taking all real tokens. However, this is a lower direct criticality as general external users can't call this, but improper setup leads to asset loss.
+   
+   Impact:
+   Permanent loss of assets if initialized maliciously or in error (relatively lower risk, admin only).
+   
+   Recommended Fix:
+   N/A
+
+
+
+
+Critical Business Logic Flaws Found:
+
+1. Improper earnings accounting for early withdrawal leads to theft of funds and negative balances
+   Type: Incorrect Penalty/Balance Calculation
+   Contract: RewardVesting
+   Function: withdrawEarning
+   Line Numbers: 93-136
+   
+   Attack Scenario:
+   The `withdrawEarning` code does not robustly calculate which earned tokens are unlocked, and how penalties are assessed. In the event of early withdrawals or large withdrawals, the user’s `bal.earned` may underflow (subtracting too much), giving an accounting mismatch. Additionally, iterating without break on non-zero _userEarnings[] could cause a user to withdraw all tokens even if not all are unlocked. This enables sophisticated users to withdraw funds more than their balance, or avoid penalties.
+   
+   Impact:
+   Attackers can escape penalty or withdraw more reward tokens than earned, resulting in loss of contract assets.
+
+
+
+==============================================================================

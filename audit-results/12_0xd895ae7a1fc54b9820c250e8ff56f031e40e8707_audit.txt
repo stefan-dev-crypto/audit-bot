@@ -1,0 +1,95 @@
+Contract Address: 0xd895ae7a1fc54b9820c250e8ff56f031e40e8707
+Source File: 14_0xd895ae7a1fc54b9820c250e8ff56f031e40e8707.sol
+Audit Date: 2026-01-17T09:34:07.207Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+undefined
+
+
+Critical Issues Found:
+
+1. Arbitrary Stake Token Theft by Owner or Any Privileged Distributor Change
+   Type: Owner/Distributor Privileged Drain (Stake/Reward Tokens)
+   Contract: Stake_Rexas
+   Function: SetDistributor, withdraw
+   Line Numbers: 94, 115-146
+   
+   Attack Scenario:
+   The function SetDistributor(address _wallet) allows the owner to set the distributor address to any arbitrary address (including their own). Since rewards in withdraw() are distributed via stakeToken.transferFrom(distributor, ...), if the owner sets distributor to an address with a large allowance to this contract, all of that address’s tokens can be drained by any external user performing 'withdraw()' calls for their staked rewards.
+   
+   Impact:
+   Loss of arbitrary ERC20 tokens from the set distributor, unrestricted by logic or supply; all approved tokens in the distributor account could be drained via repeated user withdrawals.
+   
+   Recommended Fix:
+   N/A
+
+
+2. Critical ERC20 Approval-Consumption (Unlimited draining attack against distributor)
+   Type: Incorrect Use of transferFrom for Rewards Distribution
+   Contract: Stake_Rexas
+   Function: withdraw
+   Line Numbers: 123-125
+   
+   Attack Scenario:
+   The withdraw() function attempts stakeToken.transferFrom(distributor, msg.sender, reward). There is no restriction or tracking on the reward pool held by the contract or distributor. If the distributor address has an unlimited ERC20 allowance set to the contract, any user can repeatedly withdraw, draining the distributor for all available tokens by encouraging mass staking/withdrawal.
+   
+   Impact:
+   Unprotected token drain: the contract can endlessly transfer tokens from distributor as long as allowance exists, affecting any user who is or becomes distributor.
+   
+   Recommended Fix:
+   N/A
+
+
+3. Stake of Zero Amount Possible (allows farming rewards with zero input)
+   Type: Improper Stake Amount Validation
+   Contract: Stake_Rexas
+   Function: stake
+   Line Numbers: 74
+   
+   Attack Scenario:
+   The stake() function only checks require(amount >= 0, ...) allowing zero-value stakes. This still creates a Stake record and reward entitlement, and later allows the user to call withdraw() to collect a reward for zero input.
+   
+   Impact:
+   User can abuse logic to repeatedly collect staking rewards with zero input if there is no restriction elsewhere, resulting in inflation of rewards and possible funds loss from distributor.
+   
+   Recommended Fix:
+   N/A
+
+
+
+
+Critical Business Logic Flaws Found:
+
+1. No Reward or Stake Funding Mechanism Enforced
+   Type: Missing Economic Safeguards for Reward Pools
+   Contract: Stake_Rexas
+   Function: SetDistributor, withdraw
+   Line Numbers: 94, 123-125
+   
+   Attack Scenario:
+   There is no mechanism requiring that the contract or the distributor wallet is pre-funded for the actual sum of all rewards to be paid out. This combined with 'SetDistributor' allows for rewards to be ‘pulled’ from any arbitrary address that is then drained by stakers if mistakenly approved.
+   
+   Impact:
+   Distributor can be arbitrarily set or left unfunded, leading to reverted transactions or massive theft risk if the wrong address is approved.
+
+
+2. Rewards per Stake Are Not Capped Against Available Pool
+   Type: Unbounded Reward Minting
+   Contract: Stake_Rexas
+   Function: stake, withdraw
+   Line Numbers: 76-89, 123-125
+   
+   Attack Scenario:
+   The calculation for rewards allows users to stake and earn rewards independently of available tokens. This can lead to over-issuance of rewards, draining the distributor of more tokens than anticipated and opens the system to inflation or manipulation.
+   
+   Impact:
+   Stake participants could extract more tokens as rewards than the system has actually set aside, representing an under-collateralized staking system.
+
+
+
+==============================================================================

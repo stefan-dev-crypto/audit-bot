@@ -1,0 +1,66 @@
+Contract Address: 0xe202345c1a32a98f894f02d077af98108376ade3
+Source File: 85_0xe202345c1a32a98f894f02d077af98108376ade3.sol
+Audit Date: 2026-01-17T09:57:11.970Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+undefined
+
+
+Critical Issues Found:
+
+1. Arbitrary External Call in Rebalance Functions
+   Type: Arbitrary External Call / External Call Injection
+   Contract: Index
+   Function: rebalance, rebalanceProtocolTokenOut, rebalanceProtocolTokenIn
+   Line Numbers: function bodies, approvals, and calls to IIndexCallee(_to).execute(_data)
+   
+   Attack Scenario:
+   A malicious user can call rebalance, rebalanceProtocolTokenOut, or rebalanceProtocolTokenIn with a contract address as the _to parameter and arbitrary calldata. This arbitrary contract is called as IIndexCallee(_to).execute(_data) with approval for tokens to be spent. If the called contract is malicious or incorrectly trusted, tokens in the pool can be drained through repeated rebalancing, frontrunning or flash loan behaviors, unless all invariants are checked strictly (defenses present are _ensureReservesAfterRebalance, but not enough context on its robustness).
+   
+   Impact:
+   Potential total theft of pool assets if the _ensureReservesAfterRebalance or related controls fail or are bypassed; user loss of funds.
+   
+   Recommended Fix:
+   N/A
+
+
+2. Manager Fee Mint on Burn (Fee Inflation)
+   Type: Pool Dilution / Fee Extraction
+   Contract: Index
+   Function: burn
+   Line Numbers: burn(uint256,uint256[],address)
+   
+   Attack Scenario:
+   When burning index tokens, the function gives the underlying tokens to the burner, but also mints a fee portion of new index tokens directly to the manager/owner. If there is no real value left for these new tokens, repeatedly burning tokens (especially when owner's fee = 100%) could allow the owner to extract value by simply burning, leaving the pool with zero value for remaining holders.
+   
+   Impact:
+   Potential for total value theft or dilution for remaining holders as the owner can mint index tokens for themselves with no backing value via fee mechanism.
+   
+   Recommended Fix:
+   N/A
+
+
+
+
+Critical Business Logic Flaws Found:
+
+1. Missing Slippage Protection in Rebalance Functions
+   Type: Missing Minimum/Maximum Invariant Check
+   Contract: Index
+   Function: rebalance, rebalanceProtocolTokenOut, rebalanceProtocolTokenIn
+   Line Numbers: rebalance*(...), after IIndexCallee(_to).execute(_data)
+   
+   Attack Scenario:
+   A general external user can supply malicious calldata to the rebalance*(...) functions that results in unfavorable swaps. Although _ensureReservesAfterRebalance is called, if it fails to enforce pool invariants strongly against all forms of manipulation or sandwich attacks, this allows value to be taken from honest liquidity providers or the pool. Attackers can exploit pools of assets that have transfer fees, malicious tokens, or faulty price oracles, swapping for a loss on each rebalance.
+   
+   Impact:
+   Assets can be drained by executing rebalances at unprotected prices or with malicious contracts; results in fund loss for index holders.
+
+
+
+==============================================================================

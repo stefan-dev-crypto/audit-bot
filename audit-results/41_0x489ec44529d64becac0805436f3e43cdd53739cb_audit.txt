@@ -1,0 +1,92 @@
+Contract Address: 0x489ec44529d64becac0805436f3e43cdd53739cb
+Source File: 332_0x489ec44529d64becac0805436f3e43cdd53739cb.sol
+Audit Date: 2026-01-17T11:09:52.786Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+undefined
+
+
+Critical Issues Found:
+
+1. Infinite Authorization for Uniswap Router on WETH and TitanX
+   Type: Token Approval/Allowance Attack
+   Contract: TerraX
+   Function: _swapETHForTitanX, _swapTitanXForETH, _swapUniswapV3Pool, _swapUniswapV2Pool, _swapMultihop
+   Line Numbers: 104-107, 118-121, 131-141, 143-154, 156-169
+   
+   Attack Scenario:
+   If the Uniswap router contracts are compromised or upgraded to malicious versions, they can drain unlimited amounts of WETH or TitanX tokens from the contract due to repeated approval of maximum (user deposited amount) without checks for resetting to zero before updating.
+   
+   Impact:
+   Loss of all TitanX and WETH held by the contract if router is malicious.
+   
+   Recommended Fix:
+   N/A
+
+
+2. Potential Signature Replay Attack across Chains or DApps
+   Type: Signature Replay across Domains
+   Contract: TerraX
+   Function: withdraw, withdrawEth
+   Line Numbers: 178-217, 219-253
+   
+   Attack Scenario:
+   There is no domain separator or chainId included in the keccak256 hash for withdrawal signature verification. If the same contract is deployed on a different chain with the same owner, old signatures can be replayed, leading to unauthorized withdrawals.
+   
+   Impact:
+   User deposits can be stolen with replayed signatures across chain deployments.
+   
+   Recommended Fix:
+   N/A
+
+
+
+
+Critical Business Logic Flaws Found:
+
+1. Deposit accounting does not track true user deposited amount after swaps
+   Type: Flawed Accounting
+   Contract: TerraX
+   Function: deposit, _swapETHForTitanX, _swapTokenToTitanX
+   Line Numbers: 59-85,87-115,117-171
+   
+   Attack Scenario:
+   When users deposit tokens other than TitanX or deposit via ETH, the actual amount of TitanX received after the swap is credited to ‘deposits[msg.sender]’. However, the minimum amount out (minAmountOut) provided to swaps comes directly from user input and can be set to a high value, causing the transaction to revert and not allowing flexible slippage. In the opposite case, if the UI allows passing a very low value, a user can overcredit themselves a deposit for a bad swap since the contract doesn't check the original deposit vs. the true swap output in some flows.
+   
+   Impact:
+   Leads to over- or under-crediting deposit balances, users losing or gaining excess TitanX compared to what they actually could swap for.
+
+
+2. Withdraw function does not fully check whether user’s recorded deposit covers withdrawal
+   Type: Improper Access to Withdrawals
+   Contract: TerraX
+   Function: withdraw
+   Line Numbers: 190-208
+   
+   Attack Scenario:
+   When a user requests to withdraw TitanX, if deposits[msg.sender] is less than the requested amount, the code merely sets deposits[msg.sender]=0 and allows the withdrawal to go through, rather than fully rejecting the request.
+   
+   Impact:
+   Anyone with a valid signature (potentially replayed or leaked) can try any withdrawal amount, draining all TitanX up to the contract balance, not limited by per-user real deposited balance.
+
+
+3. Critical Flaw in withdrawEth: Withdraws always allowed even if deposit zero, up to contract TitanX holdings.
+   Type: Improper Accounting & Access Control
+   Contract: TerraX
+   Function: withdrawEth
+   Line Numbers: 232-249
+   
+   Attack Scenario:
+   In the withdrawEth function, the contract checks titanxToken.balanceOf(address(this)) > amount, not per-user deposited balance. If deposits[msg.sender] is less than amount, the code just sets deposits[msg.sender] to 0 but proceeds to let the withdrawal go through. This allows an attacker to repeatedly request ETH withdrawals up to the contract’s TitanX balance, irrespective of deposit records.
+   
+   Impact:
+   Complete drain of contract ETH/TitanX via repeated withdrawals if signatures are compromised.
+
+
+
+==============================================================================

@@ -1,0 +1,35 @@
+Contract Address: 0xcf8ce57fa442ba50acbc57147a62ad03873ffa73
+Source File: 143_0xcf8ce57fa442ba50acbc57147a62ad03873ffa73.sol
+Audit Date: 2026-01-17T10:16:00.314Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+undefined
+
+
+Critical Issues Found:
+
+1. Delegatecall-based Batch Arbitrary Execution
+   Type: Arbitrary Delegatecall (Batch Functionality)
+   Contract: SablierLockup (through inherited Batch)
+   Function: batch
+   Line Numbers: Batch.sol: function batch(bytes[] calldata calls)
+   
+   Attack Scenario:
+   The `Batch` contract's `batch(bytes[] calldata calls)` function allows any external user to provide an array of calldata that will be executed via `delegatecall` to the contract itself. Because delegatecall executes code in the context of the caller's storage, a user could invoke any public/external or internal function, bypassing access controls and altering the contract's state. If any function can transfer funds or mint/burn assets, an attacker could invoke those and steal tokens or funds from the contract or users' balances.
+   
+   Impact:
+   Full compromise of contract logic and assets: attackers can mint NFT, transfer tokens, call privileged methods, or extract all contract funds.
+   
+   Recommended Fix:
+   N/A
+
+
+
+
+
+==============================================================================
