@@ -23,8 +23,13 @@ export const SETTINGS = {
   
   // Pre-audit regex check for Arbitrary External Call vulnerability
   // If enabled, only contracts matching the pattern will be audited
-  ENABLE_PRE_AUDIT_REGEX_CHECK: process.env.ENABLE_PRE_AUDIT_REGEX_CHECK === 'true' || true,
-  PRE_AUDIT_REGEX_PATTERN: process.env.PRE_AUDIT_REGEX_PATTERN || '\\.\\s*(call|delegatecall|staticcall)\\s*\\(\\s*[^,]+,\\s*[^)]+\\)',
+  ENABLE_PRE_AUDIT_REGEX_CHECK: process.env.ENABLE_PRE_AUDIT_REGEX_CHECK === 'true' || false,
+  // Pattern matches: .call(, .delegatecall(, or .staticcall( with optional whitespace and gas options
+  PRE_AUDIT_REGEX_PATTERN: process.env.PRE_AUDIT_REGEX_PATTERN || '\\.\\s*(call|delegatecall|staticcall|callcode)\\s*(\\{[^}]*\\})?\\s*\\(',
+  
+  // Pre-audit check for Integer Overflow / Arithmetic Overflow vulnerability
+  // If enabled, contracts with Solidity version < 0.8.0 and without SafeMath will be audited
+  ENABLE_PRE_AUDIT_OVERFLOW_CHECK: process.env.ENABLE_PRE_AUDIT_OVERFLOW_CHECK === 'true' || false,
 };
 
 export function isCombinedMode() {

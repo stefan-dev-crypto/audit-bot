@@ -1,0 +1,59 @@
+Contract Address: 0x6dd655f10d4b9e242ae186d9050b68f725c76d76
+Source File: 1_0x6dd655f10d4b9e242ae186d9050b68f725c76d76.sol
+Audit Date: 2026-01-17T08:53:25.224Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+undefined
+
+
+Critical Issues Found:
+
+1. Integer underflow/overflow risk in unstake logic
+   Type: Arithmetic Underflow/Overflow
+   Function: scheduleUnstake,unstake,stake
+   
+   Attack Scenario:
+   A user calls scheduleUnstake() when totalShares is very low, potentially zero (the initial value is 1). The function performs divisions and multiplications with values potentially leading to division by zero or overflow.
+   
+   Impact:
+   May allow users to mint or burn more tokens than appropriate, or revert logic, leading to loss of funds or stuck contract.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Loss of user funds due to unchecked math in Timelock vesting logic
+   Type: Arithmetic Underflow/Overflow
+   Function: updateTimelockStatus
+   
+   Attack Scenario:
+   If a user calls updateTimelockStatus when no funds are available for unlocking in the timelock, the calculation newlyUnlocked = totalUnlocked - previouslyUnlocked can underflow if previouslyUnlocked > totalUnlocked.
+   
+   Impact:
+   Arithmetic underflow could cause user vesting values to corrupt or revert, possibly locking users' funds indefinitely.
+   
+   Recommended Fix:
+   undefined
+
+
+3. Missing Reentrancy Protection in Withdrawals
+   Type: Reentrancy Attack
+   Function: withdraw,depositRegular,depositWithVesting,withdrawPrecalculated
+   
+   Attack Scenario:
+   A malicious ERC20 implementation for api3Token could reenter fallback external functions during transfer() or transferFrom() and manipulate contract state (e.g., withdraw again or alter balances).
+   
+   Impact:
+   Possible double-withdrawal, state corruption, or other attack vectors.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

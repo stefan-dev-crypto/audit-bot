@@ -25,11 +25,23 @@ export class OpenAIAuditor {
     this.telegramConfig = telegramConfig;
     
     this.systemPrompt = `You are a senior Solidity smart contract security auditor.
-Your task is to determine whether a GENERAL EXTERNAL USER (with NO owner, admin, governance, or privileged role)
+Your task is to identify ONLY the following vulnerability class:
 
-You are given a Solidity contract source code and you need to audit it for critical vulnerabilities and critical bussiness logic flaws to lose money or assets.
-Don't include Reentrancy, Denial of Service, or other non-critical vulnerabilities not related to losing money or assets.
-Don't include bussiness logic flaws not related to losing money or assets.
+"Arbitrary External Call via user-controlled target and/or calldata that allows draining all funds held by the contract."
+
+You must:
+- Focus exclusively on external calls (call, delegatecall, staticcall) where:
+  - The call target is user-controlled OR
+  - The calldata is user-controlled OR
+  - Both are user-controlled
+- Determine whether such calls can be abused to transfer ERC20 / ETH balances held by the contract
+- Consider approval + call combinations as fund-draining vectors
+- Assume a malicious caller with full control over function inputs
+
+You must NOT:
+- Report any other vulnerability classes (reentrancy, oracle manipulation, math errors, etc.)
+- Report theoretical issues unless fund draining is realistically possible
+- Suggest general best practices unless directly relevant to this vulnerability
 
 Output must be precise, technical, and audit-grade.
 
@@ -38,8 +50,6 @@ Output must be precise, technical, and audit-grade.
     - summary: string
     - critical_issues: array of objects
     - critical_issues_count: number
-    - critical_bussiness_logic_flaws: array of objects
-    - critical_bussiness_logic_flaws_count: number
 
 ==================== OUTPUT RULE ====================
 Return STRICT JSON ONLY.
@@ -47,10 +57,25 @@ No explanations outside JSON.`;
 
     this.userPrompt = `Audit the following Solidity contract.
 
+    Focus ONLY on detecting the following vulnerability:
+
+"Arbitrary External Call via user-controlled router / target / calldata that enables draining all funds held by the contract."
+
+Ignore all other vulnerability types.
+
+For any issue found:
+- Identify the exact function and code snippet
+- Explain how user input controls the external call
+- Explain how contract-held funds (ERC20 or ETH) can be drained
+- State clearly whether the issue is exploitable in practice
+
+If no such vulnerability exists, explicitly state:
+"NO Arbitrary External Call fund-drain vulnerability found."
+
 ==================== REQUIRED JSON FORMAT ====================
 {
   "critical_vulnerability_exists": boolean,
-  "bussiness_logic_flaws_exists": boolean,
+  "summary": string,
   "critical_issues": array of objects with the following fields:
     - title: string
     - vulnerability_type: string
@@ -59,16 +84,7 @@ No explanations outside JSON.`;
     - affected_contract: string
     - affected_function: string | string[]
     - affected_line_number: string | string[]
-  "critical_bussiness_logic_flaws": array of objects with the following fields:
-    - title: string
-    - bussiness_logic_flaw_type: string
-    - attack_scenario: string
-    - impact: string
-    - affected_contract: string
-    - affected_function: string | string[]
-    - affected_line_number: string
   "critical_issues_count": number,
-  "critical_bussiness_logic_flaws_count": number
 }
 
 ==================== CONTRACT SOURCE CODE ====================

@@ -90,7 +90,7 @@ export class BackgroundProcessor {
 
   /**
    * Check for unprocessed contracts and process them (in parallel)
-   * Note: All contracts in processed-contracts.json have already been filtered by value (≥$10000)
+   * Note: All contracts in processed-contracts.json have already been filtered by value (≥$1000)
    */
   async checkAndProcessContracts() {
     // Load processed contracts (detected addresses that passed value filtering)

@@ -9,6 +9,7 @@
     "audit": "node scripts/auditExisting.js",
     "dev": "node --watch src/index.js",
     "test-telegram": "node scripts/testTelegram.js",
+    "test-openai": "node scripts/testOpenAIAudit.js",
     "test-parallel": "node scripts/testParallelAudit.js",
     "test-persistence": "node scripts/testAuditPersistence.js",
     "test-language": "node scripts/testLanguageDetection.js",

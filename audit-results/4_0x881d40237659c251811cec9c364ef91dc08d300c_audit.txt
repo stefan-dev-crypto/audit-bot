@@ -1,0 +1,45 @@
+Contract Address: 0x881d40237659c251811cec9c364ef91dc08d300c
+Source File: 6_0x881d40237659c251811cec9c364ef91dc08d300c.sol
+Audit Date: 2026-01-16T18:54:08.545Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+Multiple adapter contracts (CommonAdapter, FeeCommonAdapter, FeeWethAdapter, WethAdapter) and the associated MetaSwap/Spender pattern allow user-controlled target and calldata for arbitrary external call or delegatecall. Attacker can drain all contract-held ERC20 and ETH funds using malicious external contracts, making these contracts critically vulnerable to fund-draining attacks via unrestricted call/delegatecall.
+
+
+Critical Issues Found:
+
+1. Arbitrary External call via user-controlled aggregator, method and calldata enables full contract fund drain
+   Type: Arbitrary External Call: User-controlled target, function selector, and calldata
+   Function: CommonAdapter.swap,FeeCommonAdapter.swap,FeeWethAdapter.swap,WethAdapter.swap
+   
+   Attack Scenario:
+   The swap functions of CommonAdapter, FeeCommonAdapter, FeeWethAdapter, and WethAdapter receive the aggregator address, method selector, and calldata as user-controlled inputs, which are encoded and used in aggregator.functionCallWithValue() or aggregator.functionCallWithValue(). If a malicious contract is supplied as the aggregator, and malicious calldata is submitted, the attacker can invoke arbitrary logic—including draining all tokens and ETH held by the contract using transfer(), approve()+transferFrom(), sweep functions, or via reentrancy/selfdestruct techniques. This is especially critical since the contracts approve arbitrary spenders prior to the call.
+   
+   Impact:
+   Full loss of all ERC20 and ETH funds held by the contract, as attacker can execute arbitrary code via external call with user-chosen target and calldata.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Arbitrary delegatecall via user-controlled adapter in MetaSwap+Spender allows full fund drain
+   Type: Arbitrary External Call (delegatecall): User-controlled target and calldata
+   Function: MetaSwap.swap,MetaSwap.swapUsingGasToken,Spender.swap
+   
+   Attack Scenario:
+   The MetaSwap contract's swap and swapUsingGasToken functions allow arbitrary calldata to be forwarded to a user-configurable Adapter contract (set by owner, not user, but data is user-controlled). The Spender contract then performs a delegatecall to the Adapter with fully user-controlled calldata (including function selector and arbitrary appended data). Malicious or compromised adapter addresses or crafted calldata can be used to execute arbitrary code in the context of Spender, enabling an attacker to transfer out all tokens or ETH held, or to approve and drain via transferFrom.
+   
+   Impact:
+   Full loss of ETH and ERC20 funds held by the Spender contract (and any contract it can access on its storage or balance).
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================

@@ -1,5 +1,5 @@
 /**
- * Verify that all contracts in processed-contracts.json meet the $10000 threshold
+ * Verify that all contracts in processed-contracts.json meet the $1000 threshold
  * This script re-checks all recorded contracts and reports those below threshold
  */
 
@@ -15,7 +15,7 @@ async function verifyContractValues() {
   console.log('║        Verifying Contract Value Thresholds                    ║');
   console.log('╚════════════════════════════════════════════════════════════════╝\n');
   
-  const MIN_VALUE_USD = 10000;
+  const MIN_VALUE_USD = 1000;
   const chainName = process.env.CHAIN || 'ethereum';
   
   try {

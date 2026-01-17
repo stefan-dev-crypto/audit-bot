@@ -19,7 +19,7 @@ export class ApprovalListener {
     this.isRunning = false;
     this.lastProcessedBlock = 0;
     this.dexScreenerChainId = getDexScreenerChainId(chainConfig.chainId);
-    this.minValueUsd = 10000; // Minimum $10000 in token holdings
+    this.minValueUsd = 1000; // Minimum $1000 in token holdings
     this.pendingValueChecks = []; // Queue for batch value checking
     this.valueCheckInterval = null;
   }

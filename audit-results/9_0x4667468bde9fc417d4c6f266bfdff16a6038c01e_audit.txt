@@ -1,0 +1,73 @@
+Contract Address: 0x4667468bde9fc417d4c6f266bfdff16a6038c01e
+Source File: 8_0x4667468bde9fc417d4c6f266bfdff16a6038c01e.sol
+Audit Date: 2026-01-17T08:59:31.287Z
+Model: gpt-4.1
+
+================================ AUDIT RESULT ================================
+
+Critical Vulnerability: 🚨 YES
+
+Summary:
+undefined
+
+
+Critical Issues Found:
+
+1. Missing Input Validation for ERC20 token address and Non-standard Token Support
+   Type: Arbitrary External Call/Token Drain
+   Function: stakeToken,redemption,rescueToken
+   
+   Attack Scenario:
+   If either addressBMB or addressBMC are set to non-standard, malicious, or upgradable/suspicious contract addresses—and no additional verification is performed—`TransferHelper.safeTransferFrom` and `TransferHelper.safeTransfer` can perform external calls, subjecting the contract to unforeseen or harmful token contract logic (e.g., reentrancy, selfdestruct, transfer hooks, etc.), or causing a permanent lock of tokens if the address is not an ERC20 contract. Additionally, the contract lacks zero address checks for token addresses.
+   
+   Impact:
+   Potential for arbitrary external call exploits, misuse with non-ERC20 tokens, or permanently lost funds.
+   
+   Recommended Fix:
+   undefined
+
+
+2. Integer Underflow/Overflow Bypass in ERC20 Redemption Calculation
+   Type: Integer Underflow/Overflow
+   Function: redemption
+   
+   Attack Scenario:
+   Prior to Solidity 0.8, unchecked subtractions could underflow, but starting from ^0.8.0, reverts occur by default. However, no explicit SafeMath check or error is shown if logic changes in future or compiler is changed. Additionally, userTokenUnStakeAmt can only ever increase, but no explicit checks for staleness or corruption.
+   
+   Impact:
+   Current code prevents underflow, but relying on compiler could introduce risk if settings change.
+   
+   Recommended Fix:
+   undefined
+
+
+3. Incorrect Use of _msgSender() Can Allow Misattribution under Some ERC2771/MetaTx Setups
+   Type: Business Logic Dependence on _msgSender()
+   Function: stakeToken,redemption,rescueToken,rescueETH
+   
+   Attack Scenario:
+   If `_msgSender()` is not inherited or implemented in Context, will result in silent failures or always zero address. The base Context contract here is empty, so `_msgSender()` is not defined—any use will break function logic.
+   
+   Impact:
+   Stake and redemption can be non-functional or grant access to wrong user.
+   
+   Recommended Fix:
+   undefined
+
+
+4. Emergency Withdraw (Rescue) Function Allows Owner to Withdraw User Funds
+   Type: Admin Key Risk — Owner Can Drain Staked Tokens
+   Function: rescueToken
+   
+   Attack Scenario:
+   Owner can call `rescueToken` at any time, extracting any token (including all user deposits) in arbitrary amounts.
+   
+   Impact:
+   Loss of all user funds—owner rugpull.
+   
+   Recommended Fix:
+   undefined
+
+
+
+==============================================================================
