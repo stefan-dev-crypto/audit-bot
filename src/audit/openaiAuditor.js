@@ -569,21 +569,58 @@ ${auditResult.summary}
 
 ${auditResult.critical_issues && auditResult.critical_issues.length > 0 ? `
 Critical Issues Found:
-${auditResult.critical_issues.map((issue, idx) => `
+${auditResult.critical_issues.map((issue, idx) => {
+  const contractName = issue.affected_contract || 'N/A';
+  const functionName = Array.isArray(issue.affected_function) 
+    ? issue.affected_function.join(', ') 
+    : (issue.affected_function || 'N/A');
+  const lineNumbers = Array.isArray(issue.affected_line_number)
+    ? issue.affected_line_number.join(', ')
+    : (issue.affected_line_number || 'N/A');
+  
+  return `
 ${idx + 1}. ${issue.title}
-   Type: ${issue.vulnerability_type}
-   Function: ${issue.affected_function}
+   Type: ${issue.vulnerability_type || 'N/A'}
+   Contract: ${contractName}
+   Function: ${functionName}
+   Line Numbers: ${lineNumbers}
    
    Attack Scenario:
-   ${issue.attack_scenario}
+   ${issue.attack_scenario || 'N/A'}
    
    Impact:
-   ${issue.impact}
+   ${issue.impact || 'N/A'}
    
    Recommended Fix:
-   ${issue.recommended_fix}
-`).join('\n')}
+   ${issue.recommended_fix || 'N/A'}
+`;
+}).join('\n')}
 ` : 'No critical issues detected.'}
+
+${auditResult.critical_bussiness_logic_flaws && auditResult.critical_bussiness_logic_flaws.length > 0 ? `
+Critical Business Logic Flaws Found:
+${auditResult.critical_bussiness_logic_flaws.map((flaw, idx) => {
+  const contractName = flaw.affected_contract || 'N/A';
+  const functionName = Array.isArray(flaw.affected_function) 
+    ? flaw.affected_function.join(', ') 
+    : (flaw.affected_function || 'N/A');
+  const lineNumbers = flaw.affected_line_number || 'N/A';
+  
+  return `
+${idx + 1}. ${flaw.title}
+   Type: ${flaw.bussiness_logic_flaw_type || 'N/A'}
+   Contract: ${contractName}
+   Function: ${functionName}
+   Line Numbers: ${lineNumbers}
+   
+   Attack Scenario:
+   ${flaw.attack_scenario || 'N/A'}
+   
+   Impact:
+   ${flaw.impact || 'N/A'}
+`;
+}).join('\n')}
+` : ''}
 
 ==============================================================================
 `;
